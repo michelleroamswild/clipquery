@@ -1,14 +1,12 @@
 import { useState } from "react";
-import { FolderOpen, HardDrive, Database, Usb, SpinnerGap } from "@phosphor-icons/react";
+import { FolderOpen, HardDrive, Database, Usb, SpinnerGap, CaretRight, Camera, FilmStrip } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -18,7 +16,6 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import type { SamplingInterval } from "@/types/video";
 import type { MediaStatsResponse } from "@/lib/api-client";
 import { useVolumes } from "@/hooks/use-volumes";
 
@@ -37,13 +34,22 @@ export function VideoSearchSidebar({
   isScanning,
   stats,
 }: VideoSearchSidebarProps) {
-  const [interval, setInterval] = useState<SamplingInterval>("5s");
   const [scanningPath, setScanningPath] = useState<string | null>(null);
+  const [expandedVolumes, setExpandedVolumes] = useState<Set<string>>(new Set());
   const { data: volumesData } = useVolumes();
   const volumes = volumesData?.volumes ?? [];
-  const indexedVolumeNames = new Set(
-    stats?.byVolume.map((v) => v.volume_name) ?? []
+  const volumeDetailMap = new Map(
+    (stats?.byVolumeDetail ?? []).map((d) => [d.volume_name, d])
   );
+
+  const allExpanded = volumes.length > 0 && volumes.every((v) => expandedVolumes.has(v.mountPoint));
+  const toggleAll = () => {
+    if (allExpanded) {
+      setExpandedVolumes(new Set());
+    } else {
+      setExpandedVolumes(new Set(volumes.map((v) => v.mountPoint)));
+    }
+  };
 
   return (
     <Sidebar className="border-r border-border">
@@ -56,70 +62,102 @@ export function VideoSearchSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-            <SidebarGroupLabel>Mounted Volumes</SidebarGroupLabel>
-            <SidebarGroupContent className="px-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <SidebarGroupLabel>Mounted Volumes</SidebarGroupLabel>
+              {volumes.length > 0 && (
+                <button
+                  onClick={toggleAll}
+                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2"
+                >
+                  {allExpanded ? "Collapse all" : "Expand all"}
+                </button>
+              )}
+            </div>
+            <SidebarGroupContent className="px-2 space-y-1">
               {volumes.length === 0 && (
                 <p className="text-xs text-muted-foreground">No external volumes detected</p>
               )}
               {volumes.map((vol) => {
-                const indexed = indexedVolumeNames.has(vol.name);
+                const detail = volumeDetailMap.get(vol.name);
+                const indexed = !!detail;
                 return (
-                  <div
+                  <Collapsible
                     key={vol.mountPoint}
-                    className="flex items-center justify-between gap-2"
+                    open={expandedVolumes.has(vol.mountPoint)}
+                    onOpenChange={(open) => {
+                      setExpandedVolumes((prev) => {
+                        const next = new Set(prev);
+                        if (open) next.add(vol.mountPoint);
+                        else next.delete(vol.mountPoint);
+                        return next;
+                      });
+                    }}
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Usb className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="text-xs truncate">{vol.name}</span>
+                    <CollapsibleTrigger className="flex items-center justify-between gap-2 w-full rounded-md px-1.5 py-1 hover:bg-muted/50 transition-colors group">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CaretRight className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                        <Usb className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="text-xs truncate">{vol.name}</span>
+                      </div>
                       {indexed && (
-                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                          Indexed
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
+                          {detail.total.toLocaleString()}
                         </Badge>
                       )}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 text-[11px] px-2 shrink-0"
-                      disabled={isScanning}
-                      onClick={async () => {
-                        setScanningPath(vol.mountPoint);
-                        try {
-                          await onScan(vol.mountPoint);
-                        } finally {
-                          setScanningPath(null);
-                        }
-                      }}
-                    >
-                      {scanningPath === vol.mountPoint && (
-                        <SpinnerGap className="h-3 w-3 animate-spin" />
-                      )}
-                      {indexed ? "Rescan" : "Scan"}
-                    </Button>
-                  </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="ml-5 pl-2 border-l border-border space-y-2 py-2">
+                        {indexed ? (
+                          <>
+                            <div className="space-y-0.5">
+                              {detail.photos > 0 && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <Camera className="h-3 w-3" />
+                                  <span>{detail.photos.toLocaleString()} photo{detail.photos !== 1 ? "s" : ""}</span>
+                                </div>
+                              )}
+                              {detail.videos > 0 && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <FilmStrip className="h-3 w-3" />
+                                  <span>{detail.videos.toLocaleString()} video{detail.videos !== 1 ? "s" : ""}</span>
+                                </div>
+                              )}
+                            </div>
+                            {detail.lastScan && (
+                              <p className="text-[10px] text-muted-foreground/70">
+                                Last scan: {new Date(detail.lastScan + "Z").toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground/70">Not yet scanned</p>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[11px] px-2 w-full"
+                          disabled={isScanning}
+                          onClick={async () => {
+                            setScanningPath(vol.mountPoint);
+                            try {
+                              await onScan(vol.mountPoint);
+                            } finally {
+                              setScanningPath(null);
+                            }
+                          }}
+                        >
+                          {scanningPath === vol.mountPoint && (
+                            <SpinnerGap className="h-3 w-3 mr-1 animate-spin" />
+                          )}
+                          {indexed ? "Rescan" : "Scan"}
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 );
               })}
             </SidebarGroupContent>
           </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Sampling Interval</SidebarGroupLabel>
-          <SidebarGroupContent className="px-2">
-            <Select
-              value={interval}
-              onValueChange={(v) => setInterval(v as SamplingInterval)}
-            >
-              <SelectTrigger className="text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2s">Every 2 seconds</SelectItem>
-                <SelectItem value="5s">Every 5 seconds</SelectItem>
-                <SelectItem value="10s">Every 10 seconds</SelectItem>
-              </SelectContent>
-            </Select>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
         {stats && stats.total > 0 && (
           <SidebarGroup>
@@ -127,28 +165,18 @@ export function VideoSearchSidebar({
             <SidebarGroupContent className="px-2 space-y-1.5">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Database className="h-3.5 w-3.5" />
-                <span>{stats.total} total items</span>
+                <span>{stats.total.toLocaleString()} total items</span>
               </div>
               {stats.byType.map((t) => (
                 <div key={t.type} className="text-xs text-muted-foreground pl-5">
-                  {t.count} {t.type}{t.count !== 1 ? "s" : ""}
+                  {t.count.toLocaleString()} {t.type}{t.count !== 1 ? "s" : ""}
                 </div>
               ))}
               {stats.byAvailability.map((a) => (
                 <div key={a.availability} className="text-xs text-muted-foreground pl-5">
-                  {a.count} {a.availability}
+                  {a.count.toLocaleString()} {a.availability}
                 </div>
               ))}
-              {stats.byVolume.length > 0 && (
-                <div className="pt-1">
-                  <div className="text-[11px] font-medium text-muted-foreground">Volumes</div>
-                  {stats.byVolume.map((v) => (
-                    <div key={v.volume_name} className="text-xs text-muted-foreground pl-5">
-                      {v.volume_name}: {v.count}
-                    </div>
-                  ))}
-                </div>
-              )}
             </SidebarGroupContent>
           </SidebarGroup>
         )}

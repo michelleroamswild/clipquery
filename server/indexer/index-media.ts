@@ -83,6 +83,10 @@ export async function indexDirectories(directories: string[]): Promise<{
         WHEN excluded.size_bytes != media_items.size_bytes
           OR excluded.mtime_ms != media_items.mtime_ms
         THEN 'needs_reindex' ELSE media_items.index_state END,
+      ai_state = CASE
+        WHEN excluded.size_bytes != media_items.size_bytes
+          OR excluded.mtime_ms != media_items.mtime_ms
+        THEN 'not_started' ELSE media_items.ai_state END,
       availability = 'online',
       volume_name = excluded.volume_name,
       volume_id = excluded.volume_id

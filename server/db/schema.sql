@@ -1,4 +1,4 @@
--- clipquery schema v2
+-- clipquery schema v3
 
 CREATE TABLE IF NOT EXISTS media_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS media_items (
   content_hash  TEXT,
   latitude      REAL,
   longitude     REAL,
+  location_name TEXT,
   availability  TEXT NOT NULL DEFAULT 'online' CHECK (availability IN ('online', 'offline')),
   index_state   TEXT NOT NULL DEFAULT 'unindexed' CHECK (index_state IN ('unindexed', 'needs_reindex', 'indexed')),
   ai_state      TEXT NOT NULL DEFAULT 'not_started' CHECK (ai_state IN ('not_started', 'queued', 'done', 'error')),

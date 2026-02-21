@@ -1,4 +1,5 @@
 import exifr from "exifr";
+import { extractVideoGps } from "./video-gps.js";
 
 /** Extensions that can contain EXIF GPS data */
 const GPS_CAPABLE_EXTS = new Set([
@@ -19,19 +20,26 @@ const GPS_CAPABLE_EXTS = new Set([
   ".rw2",
 ]);
 
+/** Video extensions with possible GPS in ©xyz atom */
+const VIDEO_GPS_EXTS = new Set([".mp4", ".mov", ".m4v"]);
+
 export interface GpsCoords {
   latitude: number;
   longitude: number;
 }
 
 /**
- * Extract GPS coordinates from a photo's EXIF data.
- * Returns null for non-GPS-capable formats or if no GPS data is present.
+ * Extract GPS coordinates from a file's metadata.
+ * Uses EXIF for images, ©xyz atom parsing for MP4/MOV.
  */
 export async function extractGps(
   absolutePath: string,
   fileExt: string
 ): Promise<GpsCoords | null> {
+  if (VIDEO_GPS_EXTS.has(fileExt)) {
+    return extractVideoGps(absolutePath);
+  }
+
   if (!GPS_CAPABLE_EXTS.has(fileExt)) {
     return null;
   }

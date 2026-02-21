@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -43,6 +43,15 @@ export function runMigrations(db?: Database.Database): void {
     }
     if (!colNames.has("longitude")) {
       conn.exec("ALTER TABLE media_items ADD COLUMN longitude REAL;");
+    }
+  }
+
+  if (currentVersion < 3) {
+    // v2 → v3: Add location_name column
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("location_name")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN location_name TEXT;");
     }
   }
 
