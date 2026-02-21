@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Copy, MapPin } from "@phosphor-icons/react";
+import { ArrowSquareOut, Copy, Image, MapPin } from "@phosphor-icons/react";
 import {
   Sheet,
   SheetContent,
@@ -68,8 +68,9 @@ export function MediaDetailSheet({ item, open, onClose }: MediaDetailSheetProps)
             className="w-full aspect-video object-cover"
           />
         ) : (
-          <div className="w-full aspect-video bg-muted flex items-center justify-center text-muted-foreground text-xs">
-            No thumbnail
+          <div className="w-full aspect-video bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <Image className="h-8 w-8" />
+            <span className="text-xs">Unable to generate preview</span>
           </div>
         )}
 

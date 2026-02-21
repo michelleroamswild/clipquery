@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { MagnifyingGlass, Faders, MapPin, FilmStrip } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -52,7 +51,6 @@ const Index = () => {
   const [hasSearched, setHasSearched] = useState(false);
 
   const [sortBy, setSortBy] = useState<SortOption>("score");
-  const [mountedOnly, setMountedOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [selectedItem, setSelectedItem] = useState<MediaItemRow | null>(null);
@@ -60,8 +58,11 @@ const Index = () => {
   const [dateFilter, setDateFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
+  const [volumeFilter, setVolumeFilter] = useState("all");
 
-  // Browse-mode pagination (server-side)
+  // Browse-mode sort & pagination (server-side)
+  const [browseSort, setBrowseSort] = useState("mtime_ms");
+  const [browseOrder, setBrowseOrder] = useState<"asc" | "desc">("desc");
   const [browsePage, setBrowsePage] = useState(0);
   const extensionsQuery = useMediaExtensions();
   const allExtensions = extensionsQuery.data?.extensions ?? [];
@@ -82,11 +83,12 @@ const Index = () => {
     limit: PAGE_SIZE,
     offset: browsePage * PAGE_SIZE,
     availability: availabilityFilter,
+    volume: volumeFilter !== "all" ? volumeFilter : undefined,
     file_ext: typeFilter !== "all" ? typeFilter : undefined,
     has_gps: locationFilter === "has" ? "true" : locationFilter === "none" ? "false" : undefined,
     mtime_since: mtimeSince,
-    sort: "updated_at",
-    order: "desc",
+    sort: browseSort,
+    order: browseOrder,
   });
   const browseItems = browseQuery.data?.items ?? [];
   const browseTotal = browseQuery.data?.total ?? 0;
@@ -100,11 +102,12 @@ const Index = () => {
   const [thumbnailGenerating, setThumbnailGenerating] = useState(false);
   const [thumbnailPending, setThumbnailPending] = useState(0);
 
-  // Check geocode + thumbnail status on mount and after scans
+  // Check geocode + thumbnail status on mount, after scans, and when volume filter changes
   useEffect(() => {
     fetchGeocodeStatus().then((s) => setGeocodePending(s.pending)).catch(() => {});
-    fetchThumbnailStatus().then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
-  }, [totalCount]);
+    const vol = volumeFilter !== "all" ? volumeFilter : undefined;
+    fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
+  }, [totalCount, volumeFilter]);
 
   const handleGeocode = useCallback(async () => {
     setGeocoding(true);
@@ -126,10 +129,11 @@ const Index = () => {
 
   const handleThumbnailGenerate = useCallback(async () => {
     setThumbnailGenerating(true);
+    const vol = volumeFilter !== "all" ? volumeFilter : undefined;
     try {
       let remaining = Infinity;
       while (remaining > 0) {
-        const res = await triggerThumbnailGeneration();
+        const res = await triggerThumbnailGeneration(vol);
         remaining = res.remaining;
         setThumbnailPending(remaining);
         queryClient.invalidateQueries({ queryKey: ["media"] });
@@ -139,18 +143,12 @@ const Index = () => {
     } finally {
       setThumbnailGenerating(false);
     }
-  }, [queryClient]);
+  }, [queryClient, volumeFilter]);
 
   const handleScan = async (dirPath: string) => {
     await scanMutation.mutateAsync([dirPath]);
     setResults([]);
     setHasSearched(false);
-  };
-
-  // Toggle availability filter when "Only mounted drives" is checked
-  const handleMountedToggle = (checked: boolean) => {
-    setMountedOnly(checked);
-    setAvailabilityFilter(checked ? "online" : undefined);
   };
 
   const handleSearch = () => {
@@ -277,21 +275,43 @@ const Index = () => {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
                 <Faders className="h-4 w-4 text-muted-foreground" />
-                <Select
-                  value={sortBy}
-                  onValueChange={(v) => setSortBy(v as SortOption)}
-                >
-                  <SelectTrigger className="w-44 text-xs">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="score">Confidence (high→low)</SelectItem>
-                    <SelectItem value="newest">Newest file first</SelectItem>
-                    <SelectItem value="shortest-timestamp">
-                      Shortest timestamp
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                {hasSearched ? (
+                  <Select
+                    value={sortBy}
+                    onValueChange={(v) => setSortBy(v as SortOption)}
+                  >
+                    <SelectTrigger className="w-44 text-xs">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="score">Confidence (high-low)</SelectItem>
+                      <SelectItem value="newest">Newest file first</SelectItem>
+                      <SelectItem value="shortest-timestamp">Shortest timestamp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select
+                    value={`${browseSort}:${browseOrder}`}
+                    onValueChange={(v) => {
+                      const [col, dir] = v.split(":") as [string, "asc" | "desc"];
+                      setBrowseSort(col);
+                      setBrowseOrder(dir);
+                      setBrowsePage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-44 text-xs">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mtime_ms:desc">Newest first</SelectItem>
+                      <SelectItem value="mtime_ms:asc">Oldest first</SelectItem>
+                      <SelectItem value="filename:asc">Name (A-Z)</SelectItem>
+                      <SelectItem value="filename:desc">Name (Z-A)</SelectItem>
+                      <SelectItem value="size_bytes:desc">Largest first</SelectItem>
+                      <SelectItem value="size_bytes:asc">Smallest first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
 
                 <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
                   <SelectTrigger className="w-36 text-xs">
@@ -320,6 +340,20 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
+                <Select value={volumeFilter} onValueChange={(v) => { setVolumeFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-40 text-xs">
+                    <SelectValue placeholder="Volume" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All drives</SelectItem>
+                    {(statsQuery.data?.byVolume ?? []).map((v) => (
+                      <SelectItem key={v.volume_name} value={v.volume_name}>
+                        {v.volume_name} ({v.count.toLocaleString()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Select value={locationFilter} onValueChange={(v) => { setLocationFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
                   <SelectTrigger className="w-36 text-xs">
                     <SelectValue placeholder="Location" />
@@ -332,13 +366,6 @@ const Index = () => {
                 </Select>
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                <Checkbox
-                  checked={mountedOnly}
-                  onCheckedChange={(c) => handleMountedToggle(c === true)}
-                />
-                Only mounted drives
-              </label>
             </div>
 
             {/* Results */}

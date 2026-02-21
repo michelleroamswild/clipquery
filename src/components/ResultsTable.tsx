@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Copy, MapPin } from "@phosphor-icons/react";
+import { ArrowSquareOut, Copy, Image, MapPin } from "@phosphor-icons/react";
 import {
   Table,
   TableBody,
@@ -120,7 +120,9 @@ export function ResultsTable(props: ResultsTableProps) {
                   className="w-10 h-7 object-cover rounded-sm"
                 />
               ) : (
-                <div className="w-10 h-7 rounded-sm bg-muted" />
+                <div className="w-10 h-7 rounded-sm bg-muted flex items-center justify-center">
+                  <Image className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
               )}
             </TableCell>
             <TableCell

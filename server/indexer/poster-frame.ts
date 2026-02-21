@@ -21,62 +21,16 @@ function ensureDir(): void {
   }
 }
 
-/** Get video duration in seconds via ffprobe */
-async function getVideoDuration(filePath: string): Promise<number | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      "ffprobe",
-      [
-        "-v", "quiet",
-        "-print_format", "json",
-        "-show_format",
-        filePath,
-      ],
-      { timeout: TIMEOUT_MS }
-    );
-    const data = JSON.parse(stdout);
-    const duration = parseFloat(data.format?.duration);
-    return isNaN(duration) ? null : duration;
-  } catch {
-    return null;
-  }
-}
-
 /** Extract a poster frame for a single video. Returns the output path on success. */
 async function extractPosterFrame(
   inputPath: string,
   outputPath: string
 ): Promise<void> {
-  // Primary: use thumbnail filter (picks most representative frame from first 300)
-  try {
-    await execFileAsync(
-      "ffmpeg",
-      [
-        "-i", inputPath,
-        "-vf", "thumbnail=300,scale=320:-1",
-        "-frames:v", "1",
-        "-q:v", "6",
-        "-y",
-        outputPath,
-      ],
-      { timeout: TIMEOUT_MS }
-    );
-    // Verify output exists and is non-empty
-    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
-      return;
-    }
-  } catch {
-    // Fallback below
-  }
-
-  // Fallback: seek to 10% of duration
-  const duration = await getVideoDuration(inputPath);
-  const seekTo = duration ? Math.max(0, duration * 0.1) : 1;
-
+  // Fast seek to 1s and grab a single frame
   await execFileAsync(
     "ffmpeg",
     [
-      "-ss", String(seekTo),
+      "-ss", "1",
       "-i", inputPath,
       "-vf", "scale=320:-1",
       "-frames:v", "1",
@@ -116,23 +70,25 @@ export interface GenerateResult {
 }
 
 /** Process one batch of videos: extract poster frames and update DB */
-export async function generatePosterFrames(): Promise<GenerateResult> {
+export async function generatePosterFrames(volume?: string): Promise<GenerateResult> {
   ensureDir();
   const db = getDb();
 
   // Pick items to process
+  const volumeClause = volume ? " AND volume_name = ?" : "";
+  const params: (string | number)[] = volume ? [volume, BATCH_SIZE] : [BATCH_SIZE];
   const items = db
     .prepare(
       `SELECT id, absolute_path FROM media_items
        WHERE type = 'video'
          AND availability = 'online'
-         AND ai_state IN ('not_started', 'queued')
+         AND ai_state IN ('not_started', 'queued')${volumeClause}
        LIMIT ?`
     )
-    .all(BATCH_SIZE) as { id: number; absolute_path: string }[];
+    .all(...params) as { id: number; absolute_path: string }[];
 
   if (items.length === 0) {
-    const remaining = countByState("not_started") + countByState("queued");
+    const remaining = countByState("not_started", volume) + countByState("queued", volume);
     return { processed: 0, succeeded: 0, failed: 0, remaining };
   }
 
@@ -171,18 +127,20 @@ export async function generatePosterFrames(): Promise<GenerateResult> {
     }
   });
 
-  const remaining = countByState("not_started") + countByState("queued");
+  const remaining = countByState("not_started", volume) + countByState("queued", volume);
   return { processed: items.length, succeeded, failed, remaining };
 }
 
-function countByState(state: string): number {
+function countByState(state: string, volume?: string): number {
   const db = getDb();
+  const volumeClause = volume ? " AND volume_name = ?" : "";
+  const params = volume ? [state, volume] : [state];
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM media_items
-       WHERE type = 'video' AND availability = 'online' AND ai_state = ?`
+       WHERE type = 'video' AND availability = 'online' AND ai_state = ?${volumeClause}`
     )
-    .get(state) as { count: number };
+    .get(...params) as { count: number };
   return row.count;
 }
 
@@ -194,15 +152,17 @@ export interface ThumbnailStatus {
 }
 
 /** Get counts of videos by ai_state */
-export function thumbnailStatus(): ThumbnailStatus {
+export function thumbnailStatus(volume?: string): ThumbnailStatus {
   const db = getDb();
+  const volumeClause = volume ? " AND volume_name = ?" : "";
+  const params = volume ? [volume] : [];
   const rows = db
     .prepare(
       `SELECT ai_state, COUNT(*) as count FROM media_items
-       WHERE type = 'video' AND availability = 'online'
+       WHERE type = 'video' AND availability = 'online'${volumeClause}
        GROUP BY ai_state`
     )
-    .all() as { ai_state: string; count: number }[];
+    .all(...params) as { ai_state: string; count: number }[];
 
   const counts: ThumbnailStatus = { pending: 0, queued: 0, done: 0, error: 0 };
   for (const row of rows) {

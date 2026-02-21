@@ -176,12 +176,14 @@ export interface ThumbnailStatus {
   error: number;
 }
 
-export function triggerThumbnailGeneration(): Promise<ThumbnailGenerateResult> {
-  return request<ThumbnailGenerateResult>("/thumbnails/generate", { method: "POST" });
+export function triggerThumbnailGeneration(volume?: string): Promise<ThumbnailGenerateResult> {
+  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+  return request<ThumbnailGenerateResult>(`/thumbnails/generate${qs}`, { method: "POST" });
 }
 
-export function fetchThumbnailStatus(): Promise<ThumbnailStatus> {
-  return request<ThumbnailStatus>("/thumbnails/status");
+export function fetchThumbnailStatus(volume?: string): Promise<ThumbnailStatus> {
+  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+  return request<ThumbnailStatus>(`/thumbnails/status${qs}`);
 }
 
 /** Build thumbnail URL for a media item, or null if not available */
