@@ -31,6 +31,7 @@ export interface MediaItemRow {
   content_hash: string | null;
   latitude: number | null;
   longitude: number | null;
+  location_name: string | null;
   availability: "online" | "offline";
   index_state: "unindexed" | "needs_reindex" | "indexed";
   ai_state: "not_started" | "queued" | "done" | "error";
@@ -45,12 +46,22 @@ export interface MediaListResponse {
   offset: number;
 }
 
+export interface VolumeDetail {
+  volume_name: string;
+  total: number;
+  videos: number;
+  photos: number;
+  lastScan: string | null;
+}
+
 export interface MediaStatsResponse {
   total: number;
   byType: { type: string; count: number }[];
   byVolume: { volume_name: string; count: number }[];
+  byVolumeDetail: VolumeDetail[];
   byAvailability: { availability: string; count: number }[];
   byIndexState: { index_state: string; count: number }[];
+  byAiState: { ai_state: string; count: number }[];
 }
 
 export interface ScanResult {
@@ -69,10 +80,17 @@ export interface MediaListParams {
   type?: string;
   availability?: string;
   volume?: string;
+  file_ext?: string;
+  has_gps?: string;
+  mtime_since?: string;
   sort?: string;
   order?: "asc" | "desc";
   limit?: number;
   offset?: number;
+}
+
+export interface ExtensionsResponse {
+  extensions: string[];
 }
 
 export function fetchMediaList(params: MediaListParams = {}): Promise<MediaListResponse> {
@@ -86,6 +104,10 @@ export function fetchMediaList(params: MediaListParams = {}): Promise<MediaListR
 
 export function fetchMediaStats(): Promise<MediaStatsResponse> {
   return request<MediaStatsResponse>("/media/stats");
+}
+
+export function fetchMediaExtensions(): Promise<ExtensionsResponse> {
+  return request<ExtensionsResponse>("/media/extensions");
 }
 
 export function fetchMediaItem(id: number): Promise<MediaDetailResponse> {
@@ -117,4 +139,63 @@ export interface VolumesResponse {
 
 export function fetchVolumes(): Promise<VolumesResponse> {
   return request<VolumesResponse>("/volumes");
+}
+
+// --- Geocoding ---
+
+export interface GeocodeResult {
+  processed: number;
+  remaining: number;
+}
+
+export interface GeocodeStatus {
+  pending: number;
+}
+
+export function triggerGeocode(): Promise<GeocodeResult> {
+  return request<GeocodeResult>("/geocode", { method: "POST" });
+}
+
+export function fetchGeocodeStatus(): Promise<GeocodeStatus> {
+  return request<GeocodeStatus>("/geocode/status");
+}
+
+// --- Thumbnails ---
+
+export interface ThumbnailGenerateResult {
+  processed: number;
+  succeeded: number;
+  failed: number;
+  remaining: number;
+}
+
+export interface ThumbnailStatus {
+  pending: number;
+  queued: number;
+  done: number;
+  error: number;
+}
+
+export function triggerThumbnailGeneration(): Promise<ThumbnailGenerateResult> {
+  return request<ThumbnailGenerateResult>("/thumbnails/generate", { method: "POST" });
+}
+
+export function fetchThumbnailStatus(): Promise<ThumbnailStatus> {
+  return request<ThumbnailStatus>("/thumbnails/status");
+}
+
+/** Build thumbnail URL for a media item, or null if not available */
+export function thumbnailUrl(item: { id: number; type: string; ai_state: string }): string | null {
+  if (item.type === "photo") return `${BASE}/thumbnails/photo/${item.id}`;
+  if (item.type === "video" && item.ai_state === "done") return `${BASE}/thumbnails/file/${item.id}.jpg`;
+  return null;
+}
+
+// --- Finder ---
+
+export function openInFinder(path: string): Promise<void> {
+  return request("/open-in-finder", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
 }
