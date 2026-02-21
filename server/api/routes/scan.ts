@@ -4,7 +4,7 @@ import { indexDirectories } from "../../indexer/index-media.js";
 const router = Router();
 
 /** POST /api/scan - Trigger a scan on given directories */
-router.post("/scan", (req, res) => {
+router.post("/scan", async (req, res) => {
   const { directories } = req.body as { directories?: string[] };
 
   if (!directories || !Array.isArray(directories) || directories.length === 0) {
@@ -20,7 +20,7 @@ router.post("/scan", (req, res) => {
     }
   }
 
-  const result = indexDirectories(directories);
+  const result = await indexDirectories(directories);
   res.json(result);
 });
 

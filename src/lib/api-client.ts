@@ -29,6 +29,8 @@ export interface MediaItemRow {
   mtime_ms: number;
   created_time_ms: number | null;
   content_hash: string | null;
+  latitude: number | null;
+  longitude: number | null;
   availability: "online" | "offline";
   index_state: "unindexed" | "needs_reindex" | "indexed";
   ai_state: "not_started" | "queued" | "done" | "error";

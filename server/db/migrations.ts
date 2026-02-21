@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -18,18 +18,33 @@ export function runMigrations(db?: Database.Database): void {
     )
     .get();
 
+  let currentVersion = 0;
   if (tableExists) {
     const row = conn.prepare("SELECT version FROM schema_version").get() as
       | { version: number }
       | undefined;
-    if (row && row.version >= CURRENT_VERSION) {
+    currentVersion = row?.version ?? 0;
+    if (currentVersion >= CURRENT_VERSION) {
       return; // Already up to date
     }
   }
 
-  // Apply schema
+  // Apply base schema (handles fresh installs and CREATE IF NOT EXISTS)
   const schema = fs.readFileSync(SCHEMA_PATH, "utf-8");
   conn.exec(schema);
+
+  // Incremental migrations for existing databases
+  if (currentVersion < 2) {
+    // v1 → v2: Add GPS coordinate columns
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("latitude")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN latitude REAL;");
+    }
+    if (!colNames.has("longitude")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN longitude REAL;");
+    }
+  }
 
   // Upsert version
   if (tableExists) {

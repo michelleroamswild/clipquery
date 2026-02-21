@@ -5,6 +5,8 @@ export interface VideoFile {
   fullPath: string;
   sizeBytes: number;
   modifiedAt: Date;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface SearchResult {
@@ -23,5 +25,7 @@ export function mediaRowToVideoFile(row: MediaItemRow): VideoFile {
     fullPath: row.absolute_path,
     sizeBytes: row.size_bytes,
     modifiedAt: new Date(row.mtime_ms),
+    latitude: row.latitude,
+    longitude: row.longitude,
   };
 }

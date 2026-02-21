@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { FolderSearch, HardDrive, ScanLine, Database, Usb } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { FolderOpen, HardDrive, Database, Usb, SpinnerGap } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +23,7 @@ import type { MediaStatsResponse } from "@/lib/api-client";
 import { useVolumes } from "@/hooks/use-volumes";
 
 interface VideoSearchSidebarProps {
-  onScan: (dirPath: string) => void;
+  onScan: (dirPath: string) => Promise<void> | void;
   videoCount: number;
   lastScanTime: Date | null;
   isScanning: boolean;
@@ -38,24 +37,13 @@ export function VideoSearchSidebar({
   isScanning,
   stats,
 }: VideoSearchSidebarProps) {
-  const [dirPath, setDirPath] = useState("/Users/me/Videos");
   const [interval, setInterval] = useState<SamplingInterval>("5s");
-  const [error, setError] = useState("");
+  const [scanningPath, setScanningPath] = useState<string | null>(null);
   const { data: volumesData } = useVolumes();
   const volumes = volumesData?.volumes ?? [];
   const indexedVolumeNames = new Set(
     stats?.byVolume.map((v) => v.volume_name) ?? []
   );
-
-  const handleScan = () => {
-    const trimmed = dirPath.trim();
-    if (!trimmed || trimmed.length < 2) {
-      setError("Please enter a valid directory path.");
-      return;
-    }
-    setError("");
-    onScan(trimmed);
-  };
 
   return (
     <Sidebar className="border-r border-border">
@@ -68,33 +56,11 @@ export function VideoSearchSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Index Location</SidebarGroupLabel>
-          <SidebarGroupContent className="px-2 space-y-2">
-            <Input
-              placeholder="/path/to/videos"
-              value={dirPath}
-              onChange={(e) => setDirPath(e.target.value)}
-              className="font-mono text-xs"
-            />
-            {error && (
-              <p className="text-xs text-destructive">{error}</p>
-            )}
-            <Button
-              onClick={handleScan}
-              disabled={isScanning}
-              size="sm"
-              className="w-full"
-            >
-              <ScanLine className="mr-2 h-4 w-4" />
-              {isScanning ? "Scanning…" : "Scan for media files"}
-            </Button>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {volumes.length > 0 && (
-          <SidebarGroup>
             <SidebarGroupLabel>Mounted Volumes</SidebarGroupLabel>
             <SidebarGroupContent className="px-2 space-y-2">
+              {volumes.length === 0 && (
+                <p className="text-xs text-muted-foreground">No external volumes detected</p>
+              )}
               {volumes.map((vol) => {
                 const indexed = indexedVolumeNames.has(vol.name);
                 return (
@@ -116,8 +82,18 @@ export function VideoSearchSidebar({
                       variant="outline"
                       className="h-6 text-[11px] px-2 shrink-0"
                       disabled={isScanning}
-                      onClick={() => onScan(vol.mountPoint)}
+                      onClick={async () => {
+                        setScanningPath(vol.mountPoint);
+                        try {
+                          await onScan(vol.mountPoint);
+                        } finally {
+                          setScanningPath(null);
+                        }
+                      }}
                     >
+                      {scanningPath === vol.mountPoint && (
+                        <SpinnerGap className="h-3 w-3 animate-spin" />
+                      )}
                       {indexed ? "Rescan" : "Scan"}
                     </Button>
                   </div>
@@ -125,7 +101,6 @@ export function VideoSearchSidebar({
               })}
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Sampling Interval</SidebarGroupLabel>
@@ -181,7 +156,7 @@ export function VideoSearchSidebar({
 
       <SidebarFooter className="p-4 space-y-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <FolderSearch className="h-3.5 w-3.5" />
+          <FolderOpen className="h-3.5 w-3.5" />
           <span>
             {videoCount > 0
               ? `${videoCount} file${videoCount !== 1 ? "s" : ""} indexed`

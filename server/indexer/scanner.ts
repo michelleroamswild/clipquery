@@ -2,12 +2,34 @@ import fs from "node:fs";
 import path from "node:path";
 
 const MEDIA_EXTENSIONS = new Set([
+  // Video
   ".mp4",
   ".mov",
+  ".avi",
+  ".mkv",
+  ".mts",
+  ".m4v",
+  ".lrv",
+  // Photo
   ".jpg",
   ".jpeg",
   ".png",
   ".heic",
+  ".heif",
+  ".tif",
+  ".tiff",
+  ".webp",
+  ".gif",
+  ".bmp",
+  // RAW
+  ".arw",
+  ".cr2",
+  ".cr3",
+  ".nef",
+  ".dng",
+  ".raf",
+  ".orf",
+  ".rw2",
 ]);
 
 export interface ScannedFile {
@@ -20,7 +42,7 @@ export interface ScannedFile {
   type: "video" | "photo";
 }
 
-const VIDEO_EXTS = new Set([".mp4", ".mov"]);
+const VIDEO_EXTS = new Set([".mp4", ".mov", ".avi", ".mkv", ".mts", ".m4v", ".lrv"]);
 
 /**
  * Generator that recursively walks a directory tree and yields media files.

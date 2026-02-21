@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { MagnifyingGlass, Faders } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,7 +44,7 @@ const Index = () => {
   const totalCount = mediaQuery.data?.total ?? 0;
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<MagnifyingGlassResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
   const [sortBy, setSortBy] = useState<SortOption>("score");
@@ -124,7 +124,7 @@ const Index = () => {
               className="flex gap-2"
             >
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={
                     totalCount > 0
@@ -145,7 +145,7 @@ const Index = () => {
             {/* Controls row */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                <Faders className="h-4 w-4 text-muted-foreground" />
                 <Select
                   value={sortBy}
                   onValueChange={(v) => setSortBy(v as SortOption)}

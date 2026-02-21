@@ -2,11 +2,11 @@ import { useState } from "react";
 import {
   Copy,
   Clock,
-  ExternalLink,
-  ChevronDown,
-  ChevronRight,
-  Film,
-} from "lucide-react";
+  ArrowSquareOut,
+  CaretDown,
+  CaretRight,
+  FilmStrip,
+} from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,7 @@ export function VideoResultCard({ result }: VideoResultCardProps) {
         {/* Thumbnail placeholder */}
         <div className="flex-shrink-0 w-28 h-20 rounded-md bg-muted flex items-center justify-center">
           {/* TODO: Replace with actual frame thumbnail from video at matched timestamp */}
-          <Film className="h-8 w-8 text-muted-foreground/50" />
+          <FilmStrip className="h-8 w-8 text-muted-foreground/50" />
         </div>
 
         <div className="flex-1 min-w-0 space-y-2">
@@ -56,9 +56,9 @@ export function VideoResultCard({ result }: VideoResultCardProps) {
                 className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mt-0.5"
               >
                 {expanded ? (
-                  <ChevronDown className="h-3 w-3" />
+                  <CaretDown className="h-3 w-3" />
                 ) : (
-                  <ChevronRight className="h-3 w-3" />
+                  <CaretRight className="h-3 w-3" />
                 )}
                 {expanded ? "Hide path" : "Show path"}
               </button>
@@ -88,7 +88,7 @@ export function VideoResultCard({ result }: VideoResultCardProps) {
           <div className="flex items-center gap-1.5">
             {/* TODO: Wire to OS file open (Electron shell.openPath / Tauri open) */}
             <Button variant="ghost" size="sm" className="h-7 text-xs px-2">
-              <ExternalLink className="mr-1 h-3 w-3" />
+              <ArrowSquareOut className="mr-1 h-3 w-3" />
               Open
             </Button>
             <Button

@@ -4,8 +4,10 @@ import { getDb, closeDb } from "../db/connection.js";
 import { runMigrations } from "../db/migrations.js";
 import { scanDirectory, type ScannedFile } from "./scanner.js";
 import { getVolumeInfo } from "./volume.js";
+import { extractGps } from "./exif.js";
 
 const BATCH_SIZE = 500;
+const GPS_CONCURRENCY = 50;
 
 interface ScanSummary {
   directory: string;
@@ -13,10 +15,38 @@ interface ScanSummary {
   markedOffline: number;
 }
 
-export function indexDirectories(directories: string[]): {
+type BatchFile = ScannedFile & {
+  volumeName: string;
+  volumeId: string | null;
+  isNew: number;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+/**
+ * Run extractGps on a batch of files with bounded concurrency.
+ */
+async function enrichBatchWithGps(batch: BatchFile[]): Promise<void> {
+  // Process in chunks of GPS_CONCURRENCY to avoid fd exhaustion
+  for (let i = 0; i < batch.length; i += GPS_CONCURRENCY) {
+    const chunk = batch.slice(i, i + GPS_CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map((f) => extractGps(f.absolutePath, f.fileExt))
+    );
+    for (let j = 0; j < chunk.length; j++) {
+      const gps = results[j];
+      if (gps) {
+        chunk[j].latitude = gps.latitude;
+        chunk[j].longitude = gps.longitude;
+      }
+    }
+  }
+}
+
+export async function indexDirectories(directories: string[]): Promise<{
   summaries: ScanSummary[];
   totalInDb: number;
-} {
+}> {
   const db = getDb();
   runMigrations(db);
 
@@ -26,11 +56,12 @@ export function indexDirectories(directories: string[]): {
     INSERT INTO media_items (
       type, absolute_path, filename, file_ext,
       volume_name, volume_id, size_bytes, mtime_ms,
-      created_time_ms, availability, index_state
+      created_time_ms, latitude, longitude,
+      availability, index_state
     ) VALUES (
       @type, @absolutePath, @filename, @fileExt,
       @volumeName, @volumeId, @sizeBytes, @mtimeMs,
-      @createdTimeMs, 'online',
+      @createdTimeMs, @latitude, @longitude, 'online',
       CASE WHEN @isNew = 1 THEN 'unindexed' ELSE 'needs_reindex' END
     )
     ON CONFLICT(absolute_path) DO UPDATE SET
@@ -42,6 +73,12 @@ export function indexDirectories(directories: string[]): {
         WHEN excluded.size_bytes != media_items.size_bytes
           OR excluded.mtime_ms != media_items.mtime_ms
         THEN excluded.mtime_ms ELSE media_items.mtime_ms END,
+      latitude = CASE
+        WHEN excluded.latitude IS NOT NULL THEN excluded.latitude
+        ELSE media_items.latitude END,
+      longitude = CASE
+        WHEN excluded.longitude IS NOT NULL THEN excluded.longitude
+        ELSE media_items.longitude END,
       index_state = CASE
         WHEN excluded.size_bytes != media_items.size_bytes
           OR excluded.mtime_ms != media_items.mtime_ms
@@ -59,24 +96,24 @@ export function indexDirectories(directories: string[]): {
       AND absolute_path NOT IN (SELECT value FROM json_each(@foundPaths))
   `);
 
-  const batchInsert = db.transaction(
-    (files: (ScannedFile & { volumeName: string; volumeId: string | null; isNew: number })[]) => {
-      for (const f of files) {
-        upsertStmt.run({
-          type: f.type,
-          absolutePath: f.absolutePath,
-          filename: f.filename,
-          fileExt: f.fileExt,
-          volumeName: f.volumeName,
-          volumeId: f.volumeId,
-          sizeBytes: f.sizeBytes,
-          mtimeMs: f.mtimeMs,
-          createdTimeMs: f.createdTimeMs,
-          isNew: f.isNew,
-        });
-      }
+  const batchInsert = db.transaction((files: BatchFile[]) => {
+    for (const f of files) {
+      upsertStmt.run({
+        type: f.type,
+        absolutePath: f.absolutePath,
+        filename: f.filename,
+        fileExt: f.fileExt,
+        volumeName: f.volumeName,
+        volumeId: f.volumeId,
+        sizeBytes: f.sizeBytes,
+        mtimeMs: f.mtimeMs,
+        createdTimeMs: f.createdTimeMs,
+        latitude: f.latitude,
+        longitude: f.longitude,
+        isNew: f.isNew,
+      });
     }
-  );
+  });
 
   for (const dir of directories) {
     const resolved = path.resolve(dir);
@@ -101,7 +138,7 @@ export function indexDirectories(directories: string[]): {
       ).map((r) => r.absolute_path)
     );
 
-    let batch: (ScannedFile & { volumeName: string; volumeId: string | null; isNew: number })[] = [];
+    let batch: BatchFile[] = [];
     let filesFound = 0;
     const foundPaths: string[] = [];
 
@@ -114,9 +151,12 @@ export function indexDirectories(directories: string[]): {
         volumeName: volumeInfo.name,
         volumeId: volumeInfo.uuid,
         isNew: existingPaths.has(file.absolutePath) ? 0 : 1,
+        latitude: null,
+        longitude: null,
       });
 
       if (batch.length >= BATCH_SIZE) {
+        await enrichBatchWithGps(batch);
         batchInsert(batch);
         batch = [];
       }
@@ -124,6 +164,7 @@ export function indexDirectories(directories: string[]): {
 
     // Flush remaining
     if (batch.length > 0) {
+      await enrichBatchWithGps(batch);
       batchInsert(batch);
     }
 
@@ -150,7 +191,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "
   runCli();
 }
 
-function runCli() {
+async function runCli() {
   const dirs = process.argv.slice(2);
   if (dirs.length === 0) {
     console.error("Usage: tsx server/indexer/index-media.ts <dir1> [dir2] ...");
@@ -160,7 +201,7 @@ function runCli() {
   console.log(`\nclipquery indexer`);
   console.log(`=================\n`);
 
-  const { summaries, totalInDb } = indexDirectories(dirs);
+  const { summaries, totalInDb } = await indexDirectories(dirs);
 
   console.log(`\n--- Summary ---`);
   for (const s of summaries) {
