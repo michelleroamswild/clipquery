@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database
+data/
+*.db
+*.db-journal
+*.db-wal
+
+# Server build
+dist-server/

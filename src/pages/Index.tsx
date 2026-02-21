@@ -17,45 +17,58 @@ import {
 } from "@/components/ui/sidebar";
 import { VideoSearchSidebar } from "@/components/VideoSearchSidebar";
 import { VideoResultCard } from "@/components/VideoResultCard";
-import { mockScanDirectory, mockSearch } from "@/lib/mock-data";
+import { mockSearch } from "@/lib/mock-data";
+import { useMediaList, useMediaStats } from "@/hooks/use-media";
+import { useScanDirectory } from "@/hooks/use-scan";
+import { mediaRowToVideoFile } from "@/types/video";
 import type { VideoFile, SearchResult, SortOption } from "@/types/video";
 
 const PAGE_SIZE = 6;
 
 const Index = () => {
-  const [videos, setVideos] = useState<VideoFile[]>([]);
-  const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const [availabilityFilter, setAvailabilityFilter] = useState<string | undefined>(undefined);
+
+  const mediaQuery = useMediaList({
+    limit: 200,
+    availability: availabilityFilter,
+    sort: "updated_at",
+    order: "desc",
+  });
+  const statsQuery = useMediaStats();
+  const scanMutation = useScanDirectory();
+
+  const videos: VideoFile[] = useMemo(
+    () => (mediaQuery.data?.items ?? []).map(mediaRowToVideoFile),
+    [mediaQuery.data]
+  );
+  const totalCount = mediaQuery.data?.total ?? 0;
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
   const [sortBy, setSortBy] = useState<SortOption>("score");
-  const [mountedOnly, setMountedOnly] = useState(false); // stub
+  const [mountedOnly, setMountedOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const handleScan = (dirPath: string) => {
-    setIsScanning(true);
-    // Simulate async scan delay
-    setTimeout(() => {
-      const found = mockScanDirectory(dirPath);
-      setVideos(found);
-      setLastScanTime(new Date());
-      setIsScanning(false);
-      setResults([]);
-      setHasSearched(false);
-    }, 800);
+    scanMutation.mutate([dirPath], {
+      onSuccess: () => {
+        setResults([]);
+        setHasSearched(false);
+      },
+    });
+  };
+
+  // Toggle availability filter when "Only mounted drives" is checked
+  const handleMountedToggle = (checked: boolean) => {
+    setMountedOnly(checked);
+    setAvailabilityFilter(checked ? "online" : undefined);
   };
 
   const handleSearch = () => {
     if (!query.trim()) return;
-    /**
-     * TODO: Replace mockSearch with real semantic search:
-     * 1. Encode `query` with CLIP text encoder
-     * 2. Query LanceDB/FAISS for nearest neighbour frame embeddings
-     * 3. Map results back to video files + timestamps
-     */
+    // TODO: Replace with real semantic search API
     const res = mockSearch(query, videos);
     setResults(res);
     setHasSearched(true);
@@ -86,9 +99,10 @@ const Index = () => {
       <div className="flex min-h-screen w-full">
         <VideoSearchSidebar
           onScan={handleScan}
-          videoCount={videos.length}
-          lastScanTime={lastScanTime}
-          isScanning={isScanning}
+          videoCount={totalCount}
+          lastScanTime={scanMutation.isSuccess ? new Date() : null}
+          isScanning={scanMutation.isPending}
+          stats={statsQuery.data}
         />
 
         <SidebarInset>
@@ -113,17 +127,17 @@ const Index = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={
-                    videos.length > 0
+                    totalCount > 0
                       ? "Describe what you're looking for…"
                       : "Scan a directory first to search"
                   }
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="pl-9"
-                  disabled={videos.length === 0}
+                  disabled={totalCount === 0}
                 />
               </div>
-              <Button type="submit" disabled={videos.length === 0}>
+              <Button type="submit" disabled={totalCount === 0}>
                 Search
               </Button>
             </form>
@@ -149,26 +163,31 @@ const Index = () => {
                 </Select>
               </div>
 
-              {/* TODO: Implement mounted drive detection for real file system */}
               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                 <Checkbox
                   checked={mountedOnly}
-                  onCheckedChange={(c) => setMountedOnly(c === true)}
+                  onCheckedChange={(c) => handleMountedToggle(c === true)}
                 />
                 Only mounted drives
               </label>
             </div>
 
             {/* Results */}
-            {!hasSearched && videos.length === 0 && (
+            {!hasSearched && totalCount === 0 && !mediaQuery.isLoading && (
               <div className="text-center py-20 text-muted-foreground text-sm">
                 Enter a directory path in the sidebar and scan for videos to get started.
               </div>
             )}
 
-            {!hasSearched && videos.length > 0 && (
+            {mediaQuery.isLoading && (
               <div className="text-center py-20 text-muted-foreground text-sm">
-                {videos.length} video{videos.length !== 1 ? "s" : ""} indexed.
+                Loading media...
+              </div>
+            )}
+
+            {!hasSearched && totalCount > 0 && (
+              <div className="text-center py-20 text-muted-foreground text-sm">
+                {totalCount} file{totalCount !== 1 ? "s" : ""} indexed.
                 Search for something above.
               </div>
             )}

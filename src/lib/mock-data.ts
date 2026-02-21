@@ -1,45 +1,8 @@
 import { VideoFile, SearchResult } from "@/types/video";
 
-const MOCK_FILENAMES = [
-  "interview_final_cut.mp4",
-  "product_demo_v3.mp4",
-  "conference_keynote_2024.mp4",
-  "behind_the_scenes.mp4",
-  "tutorial_react_hooks.mp4",
-  "drone_footage_coast.mp4",
-  "team_standup_jan15.mp4",
-  "client_presentation.mp4",
-  "workshop_recording.mp4",
-  "timelapse_sunset.mp4",
-  "user_testing_session_02.mp4",
-  "webinar_ai_tools.mp4",
-  "screen_capture_debug.mp4",
-  "onboarding_walkthrough.mp4",
-  "event_highlight_reel.mp4",
-];
-
 /**
- * TODO: Replace with real recursive file system scan.
- * In a desktop app (Electron/Tauri), use fs.readdir or equivalent
- * to recursively find .mp4 files under the given directory.
- */
-export function mockScanDirectory(dirPath: string): VideoFile[] {
-  const count = 5 + Math.floor(Math.random() * 11); // 5-15 files
-  const shuffled = [...MOCK_FILENAMES].sort(() => Math.random() - 0.5);
-
-  return shuffled.slice(0, count).map((filename, i) => ({
-    filename,
-    fullPath: `${dirPath}/${["projects", "media", "archive", "raw"][i % 4]}/${filename}`,
-    sizeBytes: Math.floor(Math.random() * 500_000_000) + 10_000_000,
-    modifiedAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000),
-  }));
-}
-
-/**
- * TODO: Replace with real semantic search pipeline:
- * 1. Encode query text with CLIP text encoder
- * 2. Query vector DB (LanceDB / FAISS) for nearest frame embeddings
- * 3. Return matched frames with timestamps and similarity scores
+ * TODO: Replace with real semantic search via POST /api/search
+ * once CLIP embeddings and LanceDB are integrated.
  */
 export function mockSearch(
   query: string,
