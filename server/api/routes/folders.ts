@@ -63,7 +63,17 @@ router.get("/folders", (req, res) => {
           )
           .get({ volume, pattern: childPath + "/%" }) as unknown) != null;
 
-      return { name, path: childPath, itemCount, hasChildren };
+      const hasLocation =
+        (db
+          .prepare(
+            `SELECT 1 FROM media_items
+             WHERE REPLACE(absolute_path, '/' || filename, '') = :folderPath
+               AND location_name IS NOT NULL
+             LIMIT 1`
+          )
+          .get({ folderPath: childPath }) as unknown) != null;
+
+      return { name, path: childPath, itemCount, hasChildren, hasLocation };
     });
 
     folders.sort((a, b) => a.name.localeCompare(b.name));
@@ -132,7 +142,17 @@ router.get("/folders", (req, res) => {
             )
             .get({ volume, pattern: childPath + "/%" }) as unknown) != null;
 
-        return { name, path: childPath, itemCount, hasChildren };
+        const hasLocation =
+          (db
+            .prepare(
+              `SELECT 1 FROM media_items
+               WHERE REPLACE(absolute_path, '/' || filename, '') = :folderPath
+                 AND location_name IS NOT NULL
+               LIMIT 1`
+            )
+            .get({ folderPath: childPath }) as unknown) != null;
+
+        return { name, path: childPath, itemCount, hasChildren, hasLocation };
       });
 
     // Include root items count if any
@@ -140,6 +160,36 @@ router.get("/folders", (req, res) => {
 
     folders.sort((a, b) => a.name.localeCompare(b.name));
     res.json({ folders, rootPath: rootPrefix, rootItems });
+  }
+});
+
+/** GET /api/folders/info?path=/some/path - Get current location info for a folder */
+router.get("/folders/info", (req, res) => {
+  const folderPath = req.query.path as string | undefined;
+  if (!folderPath) {
+    res.status(400).json({ error: "path query parameter is required" });
+    return;
+  }
+
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT location_name, latitude, longitude
+       FROM media_items
+       WHERE REPLACE(absolute_path, '/' || filename, '') = ?
+         AND location_name IS NOT NULL
+       LIMIT 1`
+    )
+    .get(folderPath) as { location_name: string; latitude: number | null; longitude: number | null } | undefined;
+
+  if (row) {
+    res.json({
+      locationName: row.location_name,
+      latitude: row.latitude,
+      longitude: row.longitude,
+    });
+  } else {
+    res.json({ locationName: null, latitude: null, longitude: null });
   }
 });
 

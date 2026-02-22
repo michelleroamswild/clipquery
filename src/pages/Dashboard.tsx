@@ -71,7 +71,7 @@ const Dashboard = () => {
   const llavaError = stateCount(data?.byLlavaState ?? [], "error");
   const gpsWithCount = data?.gps.with_gps ?? 0;
 
-  const aiPercent = totalCount > 0 ? Math.round((aiDone / totalCount) * 100) : 0;
+  const aiPercent = videoCount > 0 ? Math.round((aiDone / videoCount) * 100) : 0;
   const llavaPercent = totalCount > 0 ? Math.round((llavaDone / totalCount) * 100) : 0;
   const gpsPercent = totalCount > 0 ? Math.round((gpsWithCount / totalCount) * 100) : 0;
 
@@ -271,7 +271,7 @@ const Dashboard = () => {
                       <div className="flex items-center justify-between text-sm">
                         <span>Poster Frames</span>
                         <span className="text-muted-foreground">
-                          {aiDone.toLocaleString()} / {totalCount.toLocaleString()}
+                          {aiDone.toLocaleString()} / {videoCount.toLocaleString()}
                           {aiError > 0 && <span className="text-destructive ml-1">({aiError} errors)</span>}
                         </span>
                       </div>

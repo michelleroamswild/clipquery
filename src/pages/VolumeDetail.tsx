@@ -29,7 +29,7 @@ import { useFolders, useUpdateFolderLocation } from "@/hooks/use-folders";
 import { useDashboard, useMediaStats } from "@/hooks/use-media";
 import { useScanDirectory } from "@/hooks/use-scan";
 import { useToast } from "@/hooks/use-toast";
-import { searchGeocode, type FolderNode, type GeocodeSearchResult } from "@/lib/api-client";
+import { searchGeocode, fetchFolderInfo, type FolderNode, type GeocodeSearchResult } from "@/lib/api-client";
 
 // --- Folder tree node ---
 
@@ -73,6 +73,7 @@ function FolderTreeNode({
         )}
         <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="truncate">{node.name}</span>
+        {node.hasLocation && <MapPin className="h-3 w-3 shrink-0 text-green-400" />}
         <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 shrink-0">
           {node.itemCount.toLocaleString()}
         </Badge>
@@ -114,11 +115,65 @@ function FolderDetailPanel({
   }) => void;
   saving: boolean;
 }) {
-  const [locationName, setLocationName] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
+  const [coords, setCoords] = useState("");
   const [includeSubfolders, setIncludeSubfolders] = useState(true);
   const [preserveExistingGps, setPreserveExistingGps] = useState(true);
+  const [loadingInfo, setLoadingInfo] = useState(true);
+
+  // Fetch current location for this folder
+  useEffect(() => {
+    setLoadingInfo(true);
+    setCoords("");
+    setSearchQuery("");
+    fetchFolderInfo(folder.path)
+      .then((info) => {
+        if (info.locationName) {
+          setSearchQuery(info.locationName);
+        }
+        if (info.latitude != null && info.longitude != null) {
+          setCoords(`${info.latitude}, ${info.longitude}`);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingInfo(false));
+  }, [folder.path]);
+
+  // Parse coords string into lat/lng
+  const parsedCoords = (() => {
+    const match = coords.match(/^\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*$/);
+    if (!match) return null;
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  })();
+
+  // Reverse geocode when coords are manually entered and location name is empty
+  const reverseGeocodeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [reverseGeocoding, setReverseGeocoding] = useState(false);
+  useEffect(() => {
+    if (!parsedCoords || searchQuery.trim()) { setReverseGeocoding(false); return; }
+    setReverseGeocoding(true);
+    if (reverseGeocodeRef.current) clearTimeout(reverseGeocodeRef.current);
+    reverseGeocodeRef.current = setTimeout(async () => {
+      try {
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${parsedCoords.lat}&lon=${parsedCoords.lng}&format=json`,
+          { headers: { "User-Agent": "ClipQuery/1.0" } }
+        );
+        if (!resp.ok) return;
+        const data = await resp.json() as { display_name?: string };
+        if (data.display_name) {
+          setSearchQuery(data.display_name);
+        }
+      } catch {
+        // ignore
+      } finally {
+        setReverseGeocoding(false);
+      }
+    }, 500);
+    return () => { if (reverseGeocodeRef.current) clearTimeout(reverseGeocodeRef.current); };
+  }, [coords, parsedCoords?.lat, parsedCoords?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -166,19 +221,17 @@ function FolderDetailPanel({
   }, []);
 
   const selectSuggestion = (result: GeocodeSearchResult) => {
-    setLocationName(result.display_name);
-    setLat(String(result.lat));
-    setLng(String(result.lon));
     setSearchQuery(result.display_name);
+    setCoords(`${result.lat}, ${result.lon}`);
     setShowSuggestions(false);
   };
 
   const handleSave = () => {
-    if (!locationName.trim() || !lat || !lng) return;
+    if (!searchQuery.trim() || !parsedCoords) return;
     onSave({
-      locationName: locationName.trim(),
-      latitude: parseFloat(lat),
-      longitude: parseFloat(lng),
+      locationName: searchQuery.trim(),
+      latitude: parsedCoords.lat,
+      longitude: parsedCoords.lng,
       includeSubfolders,
       preserveExistingGps,
     });
@@ -221,7 +274,7 @@ function FolderDetailPanel({
 
           {/* Place search */}
           <div className="space-y-2">
-            <Label htmlFor="location-search" className="text-xs">Search Places</Label>
+            <Label htmlFor="location-search" className="text-xs">Location Name</Label>
             <div className="relative" ref={dropdownRef}>
               <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -231,9 +284,7 @@ function FolderDetailPanel({
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   if (!e.target.value.trim()) {
-                    setLocationName("");
-                    setLat("");
-                    setLng("");
+                    setCoords("");
                   }
                 }}
                 className="h-8 text-sm pl-8"
@@ -251,7 +302,7 @@ function FolderDetailPanel({
                       className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 transition-colors border-b border-border last:border-0"
                       onClick={() => selectSuggestion(s)}
                     >
-                      <div className="truncate font-medium">{s.display_name}</div>
+                      <div className="truncate font-medium" title={s.display_name}>{s.display_name}</div>
                       <div className="text-muted-foreground mt-0.5">
                         {s.lat.toFixed(4)}, {s.lon.toFixed(4)}
                       </div>
@@ -262,44 +313,19 @@ function FolderDetailPanel({
             </div>
           </div>
 
-          {/* Location name — filled from search, editable */}
+          {/* GPS coordinates — single input */}
           <div className="space-y-2">
-            <Label htmlFor="location-name" className="text-xs">Location Name</Label>
+            <Label htmlFor="coords" className="text-xs">Coordinates</Label>
             <Input
-              id="location-name"
-              placeholder="Select a place above"
-              value={locationName}
-              onChange={(e) => setLocationName(e.target.value)}
-              className="h-8 text-sm"
+              id="coords"
+              placeholder="48.8566, 2.3522"
+              value={coords}
+              onChange={(e) => setCoords(e.target.value)}
+              className={`h-8 text-sm ${coords && !parsedCoords ? "border-red-500/50" : ""}`}
             />
-          </div>
-
-          {/* GPS coordinates — filled from search, editable */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="lat" className="text-xs">Latitude</Label>
-              <Input
-                id="lat"
-                type="number"
-                step="any"
-                placeholder="48.8566"
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lng" className="text-xs">Longitude</Label>
-              <Input
-                id="lng"
-                type="number"
-                step="any"
-                placeholder="2.3522"
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-                className="h-8 text-sm"
-              />
-            </div>
+            {coords && !parsedCoords && (
+              <p className="text-[11px] text-red-400">Enter as lat, lng (e.g. 48.8566, 2.3522)</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -327,10 +353,10 @@ function FolderDetailPanel({
 
           <Button
             onClick={handleSave}
-            disabled={saving || !locationName.trim() || !lat || !lng}
+            disabled={saving || reverseGeocoding || !searchQuery.trim() || !parsedCoords}
             className="w-full h-8 text-sm"
           >
-            {saving ? "Saving..." : "Apply Location to Folder"}
+            {saving ? "Saving..." : reverseGeocoding ? "Looking up location..." : "Apply Location to Folder"}
           </Button>
         </div>
       </div>

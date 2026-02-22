@@ -144,7 +144,7 @@ export function thumbnailStatus(volume?: string): ThumbnailStatus {
   const rows = db
     .prepare(
       `SELECT ai_state, COUNT(*) as count FROM media_items
-       WHERE type = 'video' AND availability = 'online'${volumeClause}
+       WHERE type = 'video'${volumeClause}
        GROUP BY ai_state`
     )
     .all(...params) as { ai_state: string; count: number }[];

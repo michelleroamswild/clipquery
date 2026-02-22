@@ -335,6 +335,7 @@ export interface FolderNode {
   path: string;
   itemCount: number;
   hasChildren: boolean;
+  hasLocation: boolean;
 }
 
 export interface FoldersResponse {
@@ -360,6 +361,16 @@ export function fetchFolders(volume: string, parent?: string): Promise<FoldersRe
   const qs = new URLSearchParams({ volume });
   if (parent) qs.set("parent", parent);
   return request<FoldersResponse>(`/folders?${qs}`);
+}
+
+export interface FolderInfo {
+  locationName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export function fetchFolderInfo(folderPath: string): Promise<FolderInfo> {
+  return request<FolderInfo>(`/folders/info?path=${encodeURIComponent(folderPath)}`);
 }
 
 export function updateFolderLocation(
