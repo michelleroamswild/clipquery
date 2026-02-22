@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FolderOpen, HardDrive, Database, Usb, SpinnerGap, CaretRight, Camera, FilmStrip } from "@phosphor-icons/react";
+import { FolderOpen, HardDrive, Database, Usb, SpinnerGap, CaretRight, Camera, FilmStrip, MagnifyingGlass, ChartBar } from "@phosphor-icons/react";
+import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,11 +54,30 @@ export function VideoSearchSidebar({
 
   return (
     <Sidebar className="border-r border-border">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 space-y-3">
         <div className="flex items-center gap-2">
           <HardDrive className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">Indexer</span>
+          <span className="text-sm font-semibold text-foreground">clipquery</span>
         </div>
+        <nav className="flex flex-col gap-1.5">
+          <NavLink
+            to="/dashboard"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+            activeClassName="bg-muted text-foreground font-medium"
+          >
+            <ChartBar className="h-4 w-4" />
+            Dashboard
+          </NavLink>
+          <NavLink
+            to="/"
+            end
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+            activeClassName="bg-muted text-foreground font-medium"
+          >
+            <MagnifyingGlass className="h-4 w-4" />
+            Files
+          </NavLink>
+        </nav>
       </SidebarHeader>
 
       <SidebarContent>

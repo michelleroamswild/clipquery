@@ -3,6 +3,7 @@ import {
   fetchMediaList,
   fetchMediaStats,
   fetchMediaExtensions,
+  fetchDashboard,
   type MediaListParams,
 } from "@/lib/api-client";
 
@@ -24,5 +25,12 @@ export function useMediaExtensions() {
   return useQuery({
     queryKey: ["media-extensions"],
     queryFn: fetchMediaExtensions,
+  });
+}
+
+export function useDashboard() {
+  return useQuery({
+    queryKey: ["dashboard"],
+    queryFn: fetchDashboard,
   });
 }

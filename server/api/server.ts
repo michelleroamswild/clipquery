@@ -9,6 +9,7 @@ import volumeRoutes from "./routes/volumes.js";
 import thumbnailRoutes from "./routes/thumbnails.js";
 import llavaRoutes from "./routes/llava.js";
 import searchRoutes from "./routes/search.js";
+import dashboardRoutes from "./routes/dashboard.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001");
@@ -22,6 +23,7 @@ runMigrations(db);
 
 // Routes
 app.use("/api", healthRoutes);
+app.use("/api", dashboardRoutes);
 app.use("/api", mediaRoutes);
 app.use("/api", scanRoutes);
 app.use("/api", volumeRoutes);

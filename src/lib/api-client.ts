@@ -83,6 +83,7 @@ export interface MediaListParams {
   volume?: string;
   file_ext?: string;
   has_gps?: string;
+  llava_state?: string;
   mtime_since?: string;
   sort?: string;
   order?: "asc" | "desc";
@@ -241,6 +242,54 @@ export function fetchLlavaStatus(volume?: string): Promise<LlavaStatus> {
 
 export function fetchOllamaHealth(): Promise<OllamaHealth> {
   return request<OllamaHealth>("/llava/health");
+}
+
+// --- LLaVA Background ---
+
+export interface BackgroundStatus {
+  running: boolean;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  remaining: number;
+  volume?: string;
+  limit?: number;
+  startedAt?: number;
+}
+
+export function startBackgroundAnalysis(volume?: string, limit?: number): Promise<{ started: boolean; message?: string }> {
+  const params = new URLSearchParams();
+  if (volume) params.set("volume", volume);
+  if (limit != null) params.set("limit", String(limit));
+  const qs = params.toString() ? `?${params}` : "";
+  return request(`/llava/start${qs}`, { method: "POST" });
+}
+
+export function stopBackgroundAnalysis(): Promise<BackgroundStatus & { stopped: boolean }> {
+  return request(`/llava/stop`, { method: "POST" });
+}
+
+export function fetchBackgroundStatus(): Promise<BackgroundStatus> {
+  return request<BackgroundStatus>("/llava/background");
+}
+
+// --- Dashboard ---
+
+export interface DashboardResponse {
+  totals: { count: number; total_size: number };
+  byType: { type: string; count: number; size: number }[];
+  byLlavaState: { state: string; count: number }[];
+  byAiState: { state: string; count: number }[];
+  topLocations: { location_name: string; count: number }[];
+  timeline: { month: string; count: number }[];
+  topExtensions: { file_ext: string; count: number }[];
+  volumes: { volume_name: string; count: number; size: number; videos: number; photos: number }[];
+  avgSize: { type: string; avg_size: number }[];
+  gps: { with_gps: number; without_gps: number };
+}
+
+export function fetchDashboard(): Promise<DashboardResponse> {
+  return request<DashboardResponse>("/media/dashboard");
 }
 
 // --- Search ---
