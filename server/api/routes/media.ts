@@ -204,7 +204,7 @@ router.post("/geocode", async (_req, res) => {
       res.json({ processed: 0, remaining: 0 });
       return;
     }
-    const processed = await geocodeBatch(50);
+    const processed = await geocodeBatch(10);
     const remaining = geocodePending();
     res.json({ processed, remaining });
   } catch (err) {

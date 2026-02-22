@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db/connection.js";
+import { processWithConcurrency } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,7 +23,7 @@ function ensureDir(): void {
 }
 
 /** Extract a poster frame for a single video. Returns the output path on success. */
-async function extractPosterFrame(
+export async function extractPosterFrame(
   inputPath: string,
   outputPath: string
 ): Promise<void> {
@@ -44,22 +45,6 @@ async function extractPosterFrame(
   if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
     throw new Error("ffmpeg produced no output");
   }
-}
-
-/** Process items with bounded concurrency */
-async function processWithConcurrency<T>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<void>
-): Promise<void> {
-  let index = 0;
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (index < items.length) {
-      const i = index++;
-      await fn(items[i]);
-    }
-  });
-  await Promise.all(workers);
 }
 
 export interface GenerateResult {

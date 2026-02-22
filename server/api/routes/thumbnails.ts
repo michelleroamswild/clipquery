@@ -5,6 +5,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
   generatePosterFrames,
+  extractPosterFrame,
   thumbnailStatus,
   getThumbnailsDir,
 } from "../../indexer/poster-frame.js";
@@ -33,6 +34,45 @@ router.post("/thumbnails/generate", async (req, res) => {
     const result = await generatePosterFrames(volume);
     res.json(result);
   } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** POST /api/thumbnails/generate/:id — Generate thumbnail for a single video */
+router.post("/thumbnails/generate/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const db = getDb();
+  const row = db
+    .prepare("SELECT id, absolute_path, type FROM media_items WHERE id = ?")
+    .get(id) as { id: number; absolute_path: string; type: string } | undefined;
+
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (row.type !== "video") {
+    res.status(400).json({ error: "Not a video" });
+    return;
+  }
+  if (!fs.existsSync(row.absolute_path)) {
+    res.status(404).json({ error: "File not found on disk" });
+    return;
+  }
+
+  const thumbsDir = getThumbnailsDir();
+  const outputPath = path.join(thumbsDir, `${row.id}.jpg`);
+
+  try {
+    await extractPosterFrame(row.absolute_path, outputPath);
+    db.prepare("UPDATE media_items SET ai_state = 'done' WHERE id = ?").run(row.id);
+    res.json({ ok: true, ai_state: "done" });
+  } catch (err) {
+    db.prepare("UPDATE media_items SET ai_state = 'error' WHERE id = ?").run(row.id);
     res.status(500).json({ error: (err as Error).message });
   }
 });
@@ -108,6 +148,7 @@ router.get("/thumbnails/photo/:id", async (req, res) => {
     return;
   }
 
+  // Try ffmpeg first, then fall back to exiftool for RAW formats (ARW, CR2, NEF, etc.)
   try {
     await execFileAsync("ffmpeg", [
       "-i", row.absolute_path,
@@ -118,11 +159,27 @@ router.get("/thumbnails/photo/:id", async (req, res) => {
       cachedPath,
     ], { timeout: 30_000 });
 
+    if (!fs.existsSync(cachedPath) || fs.statSync(cachedPath).size === 0) {
+      throw new Error("ffmpeg produced no output");
+    }
+  } catch {
+    // Fallback: extract embedded JPEG preview via exiftool
+    try {
+      await execFileAsync("bash", [
+        "-c",
+        `exiftool -b -PreviewImage "${row.absolute_path}" > "${cachedPath}"`,
+      ], { timeout: 30_000 });
+    } catch {
+      // both methods failed
+    }
+  }
+
+  if (fs.existsSync(cachedPath) && fs.statSync(cachedPath).size > 0) {
     res.set("Cache-Control", "public, max-age=604800, immutable");
     res.set("Content-Type", "image/jpeg");
     fs.createReadStream(cachedPath).pipe(res);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to convert image" });
+  } else {
+    res.status(500).json({ error: "Failed to generate thumbnail" });
   }
 });
 

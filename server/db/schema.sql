@@ -1,4 +1,4 @@
--- clipquery schema v3
+-- clipquery schema v4
 
 CREATE TABLE IF NOT EXISTS media_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS media_items (
   availability  TEXT NOT NULL DEFAULT 'online' CHECK (availability IN ('online', 'offline')),
   index_state   TEXT NOT NULL DEFAULT 'unindexed' CHECK (index_state IN ('unindexed', 'needs_reindex', 'indexed')),
   ai_state      TEXT NOT NULL DEFAULT 'not_started' CHECK (ai_state IN ('not_started', 'queued', 'done', 'error')),
+  llava_state   TEXT NOT NULL DEFAULT 'not_started' CHECK (llava_state IN ('not_started', 'queued', 'done', 'error')),
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -32,12 +33,21 @@ CREATE TABLE IF NOT EXISTS ai_artifacts (
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Full-text search on LLaVA descriptions + tags
+CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
+  description,
+  tags,
+  content='',
+  content_rowid='rowid'
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_media_path ON media_items(absolute_path);
 CREATE INDEX IF NOT EXISTS idx_media_volume ON media_items(volume_name);
 CREATE INDEX IF NOT EXISTS idx_media_type ON media_items(type);
 CREATE INDEX IF NOT EXISTS idx_media_availability ON media_items(availability);
 CREATE INDEX IF NOT EXISTS idx_media_index_state ON media_items(index_state);
+CREATE INDEX IF NOT EXISTS idx_media_llava_state ON media_items(llava_state);
 CREATE INDEX IF NOT EXISTS idx_ai_artifacts_media ON ai_artifacts(media_item_id);
 
 -- Auto-update updated_at

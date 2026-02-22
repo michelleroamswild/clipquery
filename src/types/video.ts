@@ -11,6 +11,7 @@ export interface VideoFile {
   longitude: number | null;
   locationName: string | null;
   aiState: string;
+  llavaState: string;
 }
 
 export interface SearchResult {
@@ -33,5 +34,6 @@ export function mediaRowToVideoFile(row: MediaItemRow): VideoFile {
     longitude: row.longitude,
     locationName: row.location_name,
     aiState: row.ai_state,
+    llavaState: row.llava_state,
   };
 }

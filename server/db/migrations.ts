@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -53,6 +53,21 @@ export function runMigrations(db?: Database.Database): void {
     if (!colNames.has("location_name")) {
       conn.exec("ALTER TABLE media_items ADD COLUMN location_name TEXT;");
     }
+  }
+
+  if (currentVersion < 4) {
+    // v3 → v4: Add llava_state column and FTS table
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("llava_state")) {
+      conn.exec(
+        `ALTER TABLE media_items ADD COLUMN llava_state TEXT NOT NULL DEFAULT 'not_started'`
+      );
+    }
+    // FTS5 table (CREATE VIRTUAL TABLE IF NOT EXISTS handled by schema.sql re-exec above)
+    conn.exec(
+      `CREATE INDEX IF NOT EXISTS idx_media_llava_state ON media_items(llava_state)`
+    );
   }
 
   // Upsert version

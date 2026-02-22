@@ -1,4 +1,5 @@
-import { ArrowSquareOut, Copy, Image, MapPin } from "@phosphor-icons/react";
+import { useState, useEffect } from "react";
+import { ArrowSquareOut, Copy, FilmStrip, Image, MapPin, Brain } from "@phosphor-icons/react";
 import {
   Sheet,
   SheetContent,
@@ -8,7 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { thumbnailUrl, openInFinder } from "@/lib/api-client";
+import { thumbnailUrl, openInFinder, generateSingleThumbnail, fetchMediaItem } from "@/lib/api-client";
 import { formatFileSize } from "@/lib/mock-data";
 import type { MediaItemRow } from "@/lib/api-client";
 
@@ -25,14 +26,63 @@ function formatCoords(lat: number, lng: number): string {
 }
 
 export function MediaDetailSheet({ item, open, onClose }: MediaDetailSheetProps) {
+  const [generating, setGenerating] = useState(false);
+  const [generatedThumbUrl, setGeneratedThumbUrl] = useState<string | null>(null);
+  const [lastItemId, setLastItemId] = useState<number | null>(null);
+  const [llavaDescription, setLlavaDescription] = useState<string | null>(null);
+  const [llavaTags, setLlavaTags] = useState<string[]>([]);
+
+  // Reset generated URL and LLaVA data when switching items
+  if (item && item.id !== lastItemId) {
+    setLastItemId(item.id);
+    setGeneratedThumbUrl(null);
+    setGenerating(false);
+    setLlavaDescription(null);
+    setLlavaTags([]);
+  }
+
+  // Fetch LLaVA analysis data from artifacts
+  useEffect(() => {
+    if (!item || !open) return;
+    fetchMediaItem(item.id)
+      .then((detail) => {
+        const llavaArtifact = (detail.artifacts as { kind: string; json?: string }[])
+          .find((a) => a.kind === "llava_analysis");
+        if (llavaArtifact?.json) {
+          try {
+            const data = JSON.parse(llavaArtifact.json) as { description: string; tags: string[] };
+            setLlavaDescription(data.description);
+            setLlavaTags(data.tags);
+          } catch {
+            // ignore parse errors
+          }
+        }
+      })
+      .catch(() => {});
+  }, [item?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!item) return null;
 
-  const thumbUrl = thumbnailUrl(item);
+  const thumbUrl = generatedThumbUrl ?? thumbnailUrl(item);
   const ext = item.file_ext.replace(/^\./, "").toLowerCase();
+  const canGenerate = item.type === "video" && item.ai_state !== "done" && !generatedThumbUrl;
 
   const copyPath = () => {
     navigator.clipboard.writeText(item.absolute_path);
     toast({ title: "Copied", description: "Path copied to clipboard." });
+  };
+
+  const handleGenerateThumbnail = async () => {
+    setGenerating(true);
+    try {
+      await generateSingleThumbnail(item.id);
+      setGeneratedThumbUrl(`/api/thumbnails/file/${item.id}.jpg?t=${Date.now()}`);
+      toast({ title: "Done", description: "Thumbnail generated." });
+    } catch {
+      toast({ title: "Error", description: "Failed to generate thumbnail." });
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleOpenInFinder = async () => {
@@ -70,7 +120,20 @@ export function MediaDetailSheet({ item, open, onClose }: MediaDetailSheetProps)
         ) : (
           <div className="w-full aspect-video bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
             <Image className="h-8 w-8" />
-            <span className="text-xs">Unable to generate preview</span>
+            {canGenerate ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                disabled={generating}
+                onClick={handleGenerateThumbnail}
+              >
+                <FilmStrip className="mr-1 h-3 w-3" />
+                {generating ? "Generating..." : "Generate thumbnail"}
+              </Button>
+            ) : (
+              <span className="text-xs">Unable to generate preview</span>
+            )}
           </div>
         )}
 
@@ -105,6 +168,29 @@ export function MediaDetailSheet({ item, open, onClose }: MediaDetailSheetProps)
               </div>
             ))}
           </div>
+
+          {/* LLaVA Analysis */}
+          {llavaDescription && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Brain className="h-3 w-3" />
+                AI Analysis
+              </div>
+              <p className="text-sm leading-relaxed">{llavaDescription}</p>
+              {llavaTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {llavaTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Full path */}
           <div className="space-y-1">

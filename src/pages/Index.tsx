@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { MagnifyingGlass, Faders, MapPin, FilmStrip } from "@phosphor-icons/react";
+import { MagnifyingGlass, Faders, MapPin, FilmStrip, CaretDown, Brain } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
@@ -18,7 +24,7 @@ import { VideoSearchSidebar } from "@/components/VideoSearchSidebar";
 import { ResultsTable } from "@/components/ResultsTable";
 import { MediaDetailSheet } from "@/components/MediaDetailSheet";
 import { mockSearch } from "@/lib/mock-data";
-import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus } from "@/lib/api-client";
+import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, triggerLlavaAnalysis, fetchLlavaStatus, fetchOllamaHealth, searchMedia } from "@/lib/api-client";
 import { useMediaList, useMediaStats, useMediaExtensions } from "@/hooks/use-media";
 import { useQueryClient } from "@tanstack/react-query";
 import { useScanDirectory } from "@/hooks/use-scan";
@@ -102,11 +108,18 @@ const Index = () => {
   const [thumbnailGenerating, setThumbnailGenerating] = useState(false);
   const [thumbnailPending, setThumbnailPending] = useState(0);
 
-  // Check geocode + thumbnail status on mount, after scans, and when volume filter changes
+  // LLaVA analysis state
+  const [llavaAnalyzing, setLlavaAnalyzing] = useState(false);
+  const [llavaAnalyzable, setLlavaAnalyzable] = useState(0);
+  const [ollamaHealthy, setOllamaHealthy] = useState(false);
+
+  // Check geocode + thumbnail + llava status on mount, after scans, and when volume filter changes
   useEffect(() => {
     fetchGeocodeStatus().then((s) => setGeocodePending(s.pending)).catch(() => {});
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
     fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
+    fetchLlavaStatus(vol).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
+    fetchOllamaHealth().then((h) => setOllamaHealthy(h.running && h.model_loaded)).catch(() => setOllamaHealthy(false));
   }, [totalCount, volumeFilter]);
 
   const handleGeocode = useCallback(async () => {
@@ -127,21 +140,45 @@ const Index = () => {
     }
   }, [queryClient]);
 
-  const handleThumbnailGenerate = useCallback(async () => {
+  const handleThumbnailGenerate = useCallback(async (limit?: number) => {
     setThumbnailGenerating(true);
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
+    let processed = 0;
     try {
       let remaining = Infinity;
-      while (remaining > 0) {
+      while (remaining > 0 && (limit == null || processed < limit)) {
         const res = await triggerThumbnailGeneration(vol);
         remaining = res.remaining;
+        processed += res.processed;
         setThumbnailPending(remaining);
         queryClient.invalidateQueries({ queryKey: ["media"] });
+        if (res.processed === 0) break;
       }
     } catch {
       // stop on error
     } finally {
       setThumbnailGenerating(false);
+    }
+  }, [queryClient, volumeFilter]);
+
+  const handleLlavaAnalyze = useCallback(async (limit?: number) => {
+    setLlavaAnalyzing(true);
+    const vol = volumeFilter !== "all" ? volumeFilter : undefined;
+    let processed = 0;
+    try {
+      let remaining = Infinity;
+      while (remaining > 0 && (limit == null || processed < limit)) {
+        const res = await triggerLlavaAnalysis(vol);
+        remaining = res.remaining;
+        processed += res.processed;
+        setLlavaAnalyzable(remaining);
+        queryClient.invalidateQueries({ queryKey: ["media"] });
+        if (res.processed === 0) break;
+      }
+    } catch {
+      // stop on error
+    } finally {
+      setLlavaAnalyzing(false);
     }
   }, [queryClient, volumeFilter]);
 
@@ -151,11 +188,22 @@ const Index = () => {
     setHasSearched(false);
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!query.trim()) return;
-    // TODO: Replace with real semantic search API
-    const res = mockSearch(query, videos);
-    setResults(res);
+    try {
+      const res = await searchMedia(query.trim(), 200);
+      // Convert FTS results to SearchResult format
+      const searchResults: SearchResult[] = res.items.map((item) => ({
+        video: mediaRowToVideoFile(item),
+        timestamp: 0,
+        confidence: Math.abs(item.score),
+      }));
+      setResults(searchResults);
+    } catch {
+      // Fallback to mock search if FTS fails
+      const res = mockSearch(query, videos);
+      setResults(res);
+    }
     setHasSearched(true);
     setVisibleCount(PAGE_SIZE);
   };
@@ -393,18 +441,72 @@ const Index = () => {
                   </span>
                   <div className="flex items-center gap-2">
                     {thumbnailPending > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        disabled={thumbnailGenerating}
-                        onClick={handleThumbnailGenerate}
-                      >
-                        <FilmStrip className="mr-1 h-3 w-3" />
-                        {thumbnailGenerating
-                          ? `Generating... (${thumbnailPending.toLocaleString()} left)`
-                          : `Generate ${thumbnailPending.toLocaleString()} thumbnails`}
-                      </Button>
+                      <div className="flex items-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs rounded-r-none border-r-0"
+                          disabled={thumbnailGenerating}
+                          onClick={() => handleThumbnailGenerate(100)}
+                        >
+                          <FilmStrip className="mr-1 h-3 w-3" />
+                          {thumbnailGenerating
+                            ? `Generating... (${thumbnailPending.toLocaleString()} left)`
+                            : `Generate thumbnails (${thumbnailPending.toLocaleString()})`}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs rounded-l-none px-1.5"
+                              disabled={thumbnailGenerating}
+                            >
+                              <CaretDown className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleThumbnailGenerate(50)}>Generate 50</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleThumbnailGenerate(100)}>Generate 100</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleThumbnailGenerate(500)}>Generate 500</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleThumbnailGenerate()}>Generate all</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
+                    {ollamaHealthy && llavaAnalyzable > 0 && (
+                      <div className="flex items-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs rounded-r-none border-r-0"
+                          disabled={llavaAnalyzing}
+                          onClick={() => handleLlavaAnalyze(20)}
+                        >
+                          <Brain className="mr-1 h-3 w-3" />
+                          {llavaAnalyzing
+                            ? `Analyzing... (${llavaAnalyzable.toLocaleString()} left)`
+                            : `AI Analyze (${llavaAnalyzable.toLocaleString()})`}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs rounded-l-none px-1.5"
+                              disabled={llavaAnalyzing}
+                            >
+                              <CaretDown className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleLlavaAnalyze(20)}>Analyze 20</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleLlavaAnalyze(50)}>Analyze 50</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleLlavaAnalyze(100)}>Analyze 100</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleLlavaAnalyze()}>Analyze all</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     )}
                     {geocodePending > 0 && (
                       <Button

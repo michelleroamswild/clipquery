@@ -35,6 +35,7 @@ export interface MediaItemRow {
   availability: "online" | "offline";
   index_state: "unindexed" | "needs_reindex" | "indexed";
   ai_state: "not_started" | "queued" | "done" | "error";
+  llava_state: "not_started" | "queued" | "done" | "error";
   created_at: string;
   updated_at: string;
 }
@@ -176,6 +177,10 @@ export interface ThumbnailStatus {
   error: number;
 }
 
+export function generateSingleThumbnail(id: number): Promise<{ ok: boolean; ai_state: string }> {
+  return request(`/thumbnails/generate/${id}`, { method: "POST" });
+}
+
 export function triggerThumbnailGeneration(volume?: string): Promise<ThumbnailGenerateResult> {
   const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
   return request<ThumbnailGenerateResult>(`/thumbnails/generate${qs}`, { method: "POST" });
@@ -200,4 +205,64 @@ export function openInFinder(path: string): Promise<void> {
     method: "POST",
     body: JSON.stringify({ path }),
   });
+}
+
+// --- LLaVA ---
+
+export interface LlavaAnalyzeResult {
+  processed: number;
+  succeeded: number;
+  failed: number;
+  remaining: number;
+}
+
+export interface LlavaStatus {
+  not_started: number;
+  queued: number;
+  done: number;
+  error: number;
+  analyzable: number;
+}
+
+export interface OllamaHealth {
+  running: boolean;
+  model_loaded: boolean;
+}
+
+export function triggerLlavaAnalysis(volume?: string): Promise<LlavaAnalyzeResult> {
+  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+  return request<LlavaAnalyzeResult>(`/llava/analyze${qs}`, { method: "POST" });
+}
+
+export function fetchLlavaStatus(volume?: string): Promise<LlavaStatus> {
+  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+  return request<LlavaStatus>(`/llava/status${qs}`);
+}
+
+export function fetchOllamaHealth(): Promise<OllamaHealth> {
+  return request<OllamaHealth>("/llava/health");
+}
+
+// --- Search ---
+
+export interface SearchResultItem extends MediaItemRow {
+  score: number;
+  fts_description: string;
+  fts_tags: string;
+}
+
+export interface SearchResponse {
+  items: SearchResultItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export function searchMedia(
+  q: string,
+  limit = 50,
+  offset = 0
+): Promise<SearchResponse> {
+  const qs = new URLSearchParams({ q, limit: String(limit), offset: String(offset) });
+  return request<SearchResponse>(`/search?${qs}`);
 }
