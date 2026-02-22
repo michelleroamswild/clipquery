@@ -12,7 +12,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useDashboard, useMediaStats } from "@/hooks/use-media";
+import { useDashboard, useMediaStats, useGpsPoints } from "@/hooks/use-media";
+import { GpsMap } from "@/components/GpsMap";
 import { useScanDirectory } from "@/hooks/use-scan";
 import { fetchBackgroundStatus, type BackgroundStatus } from "@/lib/api-client";
 
@@ -31,6 +32,7 @@ function stateCount(states: { state: string; count: number }[], key: string): nu
 const Dashboard = () => {
   const { data, isLoading } = useDashboard();
   const statsQuery = useMediaStats();
+  const gpsQuery = useGpsPoints();
   const scanMutation = useScanDirectory();
   const [bgStatus, setBgStatus] = useState<BackgroundStatus | null>(null);
 
@@ -342,6 +344,26 @@ const Dashboard = () => {
                       ))}
                     </div>
                   </div>
+                )}
+
+                {/* Row 6: GPS Map */}
+                {gpsQuery.data && gpsQuery.data.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Photo &amp; Video Locations
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          {gpsQuery.data.length.toLocaleString()} points
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[400px] rounded-md overflow-hidden">
+                        <GpsMap points={gpsQuery.data} />
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
               </>
             )}

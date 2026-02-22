@@ -85,4 +85,16 @@ router.get("/media/dashboard", (_req, res) => {
   });
 });
 
+/** GET /api/media/gps-points - All GPS coordinates for map view */
+router.get("/media/gps-points", (_req, res) => {
+  const db = getDb();
+  const points = db
+    .prepare(
+      "SELECT id, latitude AS lat, longitude AS lng, type, filename FROM media_items WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
+    )
+    .all() as { id: number; lat: number; lng: number; type: string; filename: string }[];
+
+  res.json({ points });
+});
+
 export default router;

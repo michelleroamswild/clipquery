@@ -306,6 +306,22 @@ export function fetchDashboard(): Promise<DashboardResponse> {
   return request<DashboardResponse>("/media/dashboard");
 }
 
+export interface GpsPoint {
+  id: number;
+  lat: number;
+  lng: number;
+  type: string;
+  filename: string;
+}
+
+export interface GpsPointsResponse {
+  points: GpsPoint[];
+}
+
+export function fetchGpsPoints(): Promise<GpsPointsResponse> {
+  return request<GpsPointsResponse>("/media/gps-points");
+}
+
 // --- Folders ---
 
 export interface FolderNode {

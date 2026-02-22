@@ -4,6 +4,7 @@ import {
   fetchMediaStats,
   fetchMediaExtensions,
   fetchDashboard,
+  fetchGpsPoints,
   type MediaListParams,
 } from "@/lib/api-client";
 
@@ -32,5 +33,13 @@ export function useDashboard() {
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboard,
+  });
+}
+
+export function useGpsPoints() {
+  return useQuery({
+    queryKey: ["gps-points"],
+    queryFn: fetchGpsPoints,
+    select: (data) => data.points,
   });
 }
