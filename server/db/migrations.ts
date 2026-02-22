@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 5;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -63,10 +63,29 @@ export function runMigrations(db?: Database.Database): void {
     }
   }
 
+  if (currentVersion < 5) {
+    // v4 → v5: Rebuild FTS with filename + location_name columns, populate for all items
+    conn.exec("DROP TABLE IF EXISTS media_fts");
+  }
+
   // Apply base schema (handles fresh installs via CREATE IF NOT EXISTS,
   // and creates indexes/FTS tables for existing databases)
   const schema = fs.readFileSync(SCHEMA_PATH, "utf-8");
   conn.exec(schema);
+
+  if (currentVersion < 5) {
+    // Populate FTS for ALL media items (join ai_artifacts for description/tags where available)
+    conn.exec(`
+      INSERT INTO media_fts (rowid, description, tags, filename, location_name)
+        SELECT m.id,
+               COALESCE(json_extract(a.json, '$.description'), ''),
+               COALESCE((SELECT GROUP_CONCAT(value, ', ') FROM json_each(a.json, '$.tags')), ''),
+               m.filename,
+               COALESCE(m.location_name, '')
+        FROM media_items m
+        LEFT JOIN ai_artifacts a ON a.media_item_id = m.id AND a.kind = 'llava_analysis'
+    `);
+  }
 
   // Upsert version
   if (tableExists) {

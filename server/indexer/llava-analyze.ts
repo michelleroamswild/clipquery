@@ -145,8 +145,10 @@ interface MediaRow {
   id: number;
   type: "video" | "photo";
   absolute_path: string;
+  filename: string;
   file_ext: string;
   ai_state: string;
+  location_name: string | null;
 }
 
 /**
@@ -238,7 +240,7 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
   // Videos need ai_state='done' (poster frame exists), photos just need to be online
   const items = db
     .prepare(
-      `SELECT m.id, m.type, m.absolute_path, m.file_ext, m.ai_state
+      `SELECT m.id, m.type, m.absolute_path, m.filename, m.file_ext, m.ai_state, m.location_name
        FROM media_items m
        WHERE m.availability = 'online'
          AND m.llava_state IN ('not_started', 'queued')
@@ -276,7 +278,7 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
     `INSERT INTO ai_artifacts (media_item_id, kind, json) VALUES (?, 'llava_analysis', ?)`
   );
   const insertFts = db.prepare(
-    `INSERT INTO media_fts (rowid, description, tags) VALUES (?, ?, ?)`
+    `INSERT INTO media_fts (rowid, description, tags, filename, location_name) VALUES (?, ?, ?, ?, ?)`
   );
 
   let succeeded = 0;
@@ -295,7 +297,7 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
         insertArtifact.run(item.id, jsonStr);
         // Remove existing FTS entry if any, then insert
         db.prepare("DELETE FROM media_fts WHERE rowid = ?").run(item.id);
-        insertFts.run(item.id, result.description, result.tags.join(", "));
+        insertFts.run(item.id, result.description, result.tags.join(", "), item.filename, item.location_name ?? "");
         markDone.run(item.id);
       })();
       succeeded++;

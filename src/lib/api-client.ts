@@ -295,7 +295,7 @@ export interface DashboardResponse {
   byLlavaState: { state: string; count: number }[];
   byAiState: { state: string; count: number }[];
   topLocations: { location_name: string; count: number }[];
-  timeline: { month: string; count: number }[];
+  timeline: { month: string; photos: number; videos: number }[];
   topExtensions: { file_ext: string; count: number }[];
   volumes: { volume_name: string; count: number; size: number; videos: number; photos: number }[];
   avgSize: { type: string; avg_size: number }[];

@@ -76,7 +76,8 @@ const Dashboard = () => {
   const gpsPercent = totalCount > 0 ? Math.round((gpsWithCount / totalCount) * 100) : 0;
 
   const timelineConfig = {
-    count: { label: "Items", color: "hsl(var(--primary))" },
+    photos: { label: "Photos", color: "hsl(210 80% 60%)" },
+    videos: { label: "Videos", color: "hsl(280 70% 60%)" },
   };
 
   const extConfig = {
@@ -191,9 +192,20 @@ const Dashboard = () => {
                           />
                           <YAxis tickLine={false} axisLine={false} />
                           <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="photos" stackId="a" fill="var(--color-photos)" radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="videos" stackId="a" fill="var(--color-videos)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ChartContainer>
+                      <div className="flex items-center justify-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "hsl(210 80% 60%)" }} />
+                          Photos
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "hsl(280 70% 60%)" }} />
+                          Videos
+                        </span>
+                      </div>
                     </CardContent>
                   </Card>
                 )}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { MagnifyingGlass, Faders, MapPin, FilmStrip, CaretDown, Brain, Stop } from "@phosphor-icons/react";
+import { MagnifyingGlass, Faders, MapPin, FilmStrip, CaretDown, Brain, Stop, X } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -260,6 +260,7 @@ const Index = () => {
       // Convert FTS results to SearchResult format
       const searchResults: SearchResult[] = res.items.map((item) => ({
         video: mediaRowToVideoFile(item),
+        mediaItem: item,
         timestamp: 0,
         confidence: Math.abs(item.score),
       }));
@@ -375,9 +376,18 @@ const Index = () => {
                   }
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 pr-8"
                   disabled={totalCount === 0}
                 />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => { setQuery(""); setResults([]); setHasSearched(false); }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               <Button type="submit" disabled={totalCount === 0}>
                 Search
@@ -478,6 +488,17 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
+                <Select value={availabilityFilter ?? "all"} onValueChange={(v) => { setAvailabilityFilter(v === "all" ? undefined : v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-32 text-xs">
+                    <SelectValue placeholder="Availability" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any status</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="offline">Offline</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Select value={aiFilter} onValueChange={(v) => { setAiFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
                   <SelectTrigger className="w-36 text-xs">
                     <SelectValue placeholder="AI status" />
@@ -489,6 +510,27 @@ const Index = () => {
                     <SelectItem value="error">Error</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {(dateFilter !== "all" || typeFilter !== "all" || volumeFilter !== "all" || locationFilter !== "all" || aiFilter !== "all" || availabilityFilter != null) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => {
+                      setDateFilter("all");
+                      setTypeFilter("all");
+                      setVolumeFilter("all");
+                      setLocationFilter("all");
+                      setAiFilter("all");
+                      setAvailabilityFilter(undefined);
+                      setVisibleCount(PAGE_SIZE);
+                      setBrowsePage(0);
+                    }}
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    Clear filters
+                  </Button>
+                )}
               </div>
 
             </div>

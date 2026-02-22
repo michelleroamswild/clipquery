@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
-import { ArrowSquareOut, Copy, FilmStrip, Image, MapPin, Brain } from "@phosphor-icons/react";
+import { ArrowSquareOut, Copy, FilmStrip, Image, MapPin, Brain, X } from "@phosphor-icons/react";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
+  SheetClose,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -109,7 +107,23 @@ export function MediaDetailSheet({ item, open, onClose }: MediaDetailSheetProps)
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-[400px] sm:max-w-[400px] overflow-y-auto p-0">
+      <SheetContent side="right" hideClose className="w-[500px] sm:max-w-[500px] overflow-y-auto p-0">
+        {/* Header bar */}
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-border">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold truncate" title={item.filename}>
+              {item.filename}
+            </h2>
+            <span className="inline-block mt-0.5 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+              .{ext}
+            </span>
+          </div>
+          <SheetClose className="rounded-sm opacity-70 hover:opacity-100 transition-opacity shrink-0">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </SheetClose>
+        </div>
+
         {/* Thumbnail */}
         {thumbUrl ? (
           <img
@@ -138,17 +152,6 @@ export function MediaDetailSheet({ item, open, onClose }: MediaDetailSheetProps)
         )}
 
         <div className="p-6 space-y-5">
-          {/* Header */}
-          <SheetHeader>
-            <SheetTitle className="text-base break-all leading-snug">
-              {item.filename}
-            </SheetTitle>
-            <SheetDescription>
-              <span className="inline-block mt-1 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
-                .{ext}
-              </span>
-            </SheetDescription>
-          </SheetHeader>
 
           {/* Metadata grid */}
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

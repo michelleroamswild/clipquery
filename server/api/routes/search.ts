@@ -19,10 +19,12 @@ router.get("/search", (req, res) => {
 
     const rows = db
       .prepare(
-        `SELECT m.*, fts.rank as score,
-                fts.description as fts_description, fts.tags as fts_tags
+        `SELECT m.*, fts.rank AS score,
+                json_extract(a.json, '$.description') AS fts_description,
+                COALESCE((SELECT GROUP_CONCAT(value, ', ') FROM json_each(a.json, '$.tags')), '') AS fts_tags
          FROM media_fts fts
          JOIN media_items m ON m.id = fts.rowid
+         LEFT JOIN ai_artifacts a ON a.media_item_id = m.id AND a.kind = 'llava_analysis'
          WHERE media_fts MATCH ?
          ORDER BY fts.rank
          LIMIT ? OFFSET ?`

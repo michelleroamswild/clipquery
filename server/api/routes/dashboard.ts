@@ -34,12 +34,15 @@ router.get("/media/dashboard", (_req, res) => {
     )
     .all() as { location_name: string; count: number }[];
 
-  // 6. Timeline (items per month)
+  // 6. Timeline (items per month, split by photos vs videos)
   const timeline = db
     .prepare(
-      "SELECT strftime('%Y-%m', datetime(mtime_ms / 1000, 'unixepoch')) as month, COUNT(*) as count FROM media_items GROUP BY month ORDER BY month"
+      `SELECT strftime('%Y-%m', datetime(mtime_ms / 1000, 'unixepoch')) as month,
+              SUM(CASE WHEN LOWER(file_ext) IN ('.mov', '.mp4') THEN 1 ELSE 0 END) as videos,
+              SUM(CASE WHEN LOWER(file_ext) NOT IN ('.mov', '.mp4') THEN 1 ELSE 0 END) as photos
+       FROM media_items GROUP BY month ORDER BY month`
     )
-    .all() as { month: string; count: number }[];
+    .all() as { month: string; videos: number; photos: number }[];
 
   // 7. Top 10 file extensions
   const topExtensions = db

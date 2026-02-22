@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Brain, Copy, Image, MapPin } from "@phosphor-icons/react";
+import { ArrowSquareOut, Brain, Copy, Image, MapPin, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import {
   Table,
   TableBody,
@@ -72,6 +72,7 @@ export function ResultsTable(props: ResultsTableProps) {
         timestamp: r.timestamp,
         confidence: r.confidence,
         thumbUrl: thumbnailUrl({ id: r.video.id, type: r.video.type, ai_state: r.video.aiState }),
+        mediaItem: r.mediaItem,
       }))
     : props.items.map((item) => ({
         key: `${item.id}`,
@@ -101,6 +102,7 @@ export function ResultsTable(props: ResultsTableProps) {
           <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[100px]">Date Created</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[260px]">Location</TableHead>
+          {!isSearch && <TableHead className="h-8 px-2 text-xs w-[70px]">Status</TableHead>}
           {!isSearch && <TableHead className="h-8 px-2 text-xs w-[32px] text-center" title="AI Analyzed"><Brain className="h-3 w-3 inline" /></TableHead>}
           <TableHead className="h-8 px-2 text-xs w-[70px]" />
         </TableRow>
@@ -109,8 +111,8 @@ export function ResultsTable(props: ResultsTableProps) {
         {rows.map((row, i) => (
           <TableRow
             key={`${row.key}-${i}`}
-            className={"mediaItem" in row && props.onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
-            onClick={() => "mediaItem" in row && props.onRowClick?.(row.mediaItem)}
+            className={row.mediaItem && props.onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+            onClick={() => row.mediaItem && props.onRowClick?.(row.mediaItem)}
           >
             <TableCell className="px-2 py-1.5">
               {row.thumbUrl ? (
@@ -165,8 +167,25 @@ export function ResultsTable(props: ResultsTableProps) {
               )}
             </TableCell>
             {!isSearch && (
+              <TableCell className="px-2 py-1.5 text-xs">
+                {row.mediaItem && (
+                  row.mediaItem.availability === "online" ? (
+                    <span className="flex items-center gap-1 text-green-400">
+                      <WifiHigh className="h-3 w-3 shrink-0" />
+                      Online
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-muted-foreground/60">
+                      <WifiSlash className="h-3 w-3 shrink-0" />
+                      Offline
+                    </span>
+                  )
+                )}
+              </TableCell>
+            )}
+            {!isSearch && (
               <TableCell className="px-2 py-1.5 text-center">
-                {"mediaItem" in row && row.mediaItem.llava_state === "done" && (
+                {row.mediaItem?.llava_state === "done" && (
                   <Brain className="h-3 w-3 text-violet-400 inline" title="AI analyzed" />
                 )}
               </TableCell>

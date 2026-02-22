@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { getDb } from "../db/connection.js";
 import { runMigrations } from "../db/migrations.js";
+import { syncVolumeAvailability } from "../indexer/availability.js";
 import healthRoutes from "./routes/health.js";
 import mediaRoutes from "./routes/media.js";
 import scanRoutes from "./routes/scan.js";
@@ -21,6 +22,10 @@ app.use(express.json());
 // Init DB on startup
 const db = getDb();
 runMigrations(db);
+
+// Sync volume availability on startup and every 30 seconds
+syncVolumeAvailability();
+setInterval(syncVolumeAvailability, 30_000);
 
 // Routes
 app.use("/api", healthRoutes);

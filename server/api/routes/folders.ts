@@ -193,6 +193,30 @@ router.patch("/folders/location", (req, res) => {
     gpsUpdated = gpsResult.changes;
   }
 
+  // Re-sync FTS entries for affected items so location_name is searchable
+  if (nameResult.changes > 0) {
+    const affectedIds = db
+      .prepare(`SELECT id FROM media_items WHERE ${whereClause}`)
+      .all(params) as { id: number }[];
+    const ids = affectedIds.map((r) => r.id);
+
+    if (ids.length > 0) {
+      const inList = ids.join(",");
+      db.exec(`DELETE FROM media_fts WHERE rowid IN (${inList})`);
+      db.exec(`
+        INSERT INTO media_fts (rowid, description, tags, filename, location_name)
+          SELECT m.id,
+                 COALESCE(json_extract(a.json, '$.description'), ''),
+                 COALESCE((SELECT GROUP_CONCAT(value, ', ') FROM json_each(a.json, '$.tags')), ''),
+                 m.filename,
+                 COALESCE(m.location_name, '')
+          FROM media_items m
+          LEFT JOIN ai_artifacts a ON a.media_item_id = m.id AND a.kind = 'llava_analysis'
+          WHERE m.id IN (${inList})
+      `);
+    }
+  }
+
   res.json({ updated: nameResult.changes, gpsUpdated });
 });
 

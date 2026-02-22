@@ -1,4 +1,4 @@
--- clipquery schema v4
+-- clipquery schema v5
 
 CREATE TABLE IF NOT EXISTS media_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,10 +33,12 @@ CREATE TABLE IF NOT EXISTS ai_artifacts (
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Full-text search on LLaVA descriptions + tags
+-- Full-text search on LLaVA descriptions + tags + filename + location
 CREATE VIRTUAL TABLE IF NOT EXISTS media_fts USING fts5(
   description,
   tags,
+  filename,
+  location_name,
   content='',
   content_rowid='rowid'
 );

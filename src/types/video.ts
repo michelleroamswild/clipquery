@@ -16,6 +16,7 @@ export interface VideoFile {
 
 export interface SearchResult {
   video: VideoFile;
+  mediaItem?: MediaItemRow;
   timestamp: number; // seconds
   confidence: number; // 0-1
 }
