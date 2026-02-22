@@ -122,7 +122,7 @@ const Index = () => {
   useEffect(() => {
     fetchGeocodeStatus().then((s) => setGeocodePending(s.pending)).catch(() => {});
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
-    fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
+    fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued + s.error)).catch(() => {});
     fetchLlavaStatus(vol).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
     fetchOllamaHealth().then((h) => setOllamaHealthy(h.running && h.model_loaded)).catch(() => setOllamaHealthy(false));
     // Resume UI state if background analysis is already running
@@ -210,7 +210,7 @@ const Index = () => {
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
     const res = await startBackgroundAnalysis(vol, limit);
     if (!res.started) {
-      toast({ title: "AI Analysis", description: "Already running" });
+      toast({ title: "AI Analysis", description: "Already running", duration: 5000 });
       return;
     }
     setLlavaAnalyzing(true);
@@ -273,6 +273,10 @@ const Index = () => {
     }
     setHasSearched(true);
     setVisibleCount(PAGE_SIZE);
+    setTypeFilter("all");
+    setDateFilter("all");
+    setLocationFilter("all");
+    setAiFilter("all");
   };
 
   // Unique file extensions from current results

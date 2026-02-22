@@ -41,7 +41,7 @@ export function ResultsTable(props: ResultsTableProps) {
     try {
       await openInFinder(path);
     } catch {
-      toast({ title: "Error", description: "Failed to open in Finder." });
+      toast({ title: "Error", description: "Failed to open in Finder.", duration: 5000 });
     }
   };
 

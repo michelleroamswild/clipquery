@@ -410,6 +410,7 @@ const VolumeDetail = () => {
             toast({
               title: "Location updated",
               description: `Updated ${result.updated} item${result.updated !== 1 ? "s" : ""}.`,
+              duration: 5000,
             });
           },
           onError: (err) => {
@@ -417,6 +418,7 @@ const VolumeDetail = () => {
               title: "Error",
               description: err instanceof Error ? err.message : "Failed to update location",
               variant: "destructive",
+              duration: 5000,
             });
           },
         }

@@ -96,9 +96,9 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
     try {
       await generateSingleThumbnail(item.id);
       setGeneratedThumbUrl(`/api/thumbnails/file/${item.id}.jpg?t=${Date.now()}`);
-      toast({ title: "Done", description: "Thumbnail generated." });
+      toast({ title: "Done", description: "Thumbnail generated.", duration: 5000 });
     } catch {
-      toast({ title: "Error", description: "Failed to generate thumbnail." });
+      toast({ title: "Error", description: "Failed to generate thumbnail.", duration: 5000 });
     } finally {
       setGenerating(false);
     }
@@ -113,9 +113,9 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
       setLlavaTags(data.tags);
       setLlavaColors(data.colors ?? []);
       setLlavaVersion(data.version ?? 2);
-      toast({ title: "Done", description: "Re-analysis complete." });
+      toast({ title: "Done", description: "Re-analysis complete.", duration: 5000 });
     } catch {
-      toast({ title: "Error", description: "Re-analysis failed. Is Ollama running?" });
+      toast({ title: "Error", description: "Re-analysis failed. Is Ollama running?", duration: 5000 });
     } finally {
       setReanalyzing(false);
     }
@@ -125,7 +125,7 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
     try {
       await openInFinder(item.absolute_path);
     } catch {
-      toast({ title: "Error", description: "Failed to open in Finder." });
+      toast({ title: "Error", description: "Failed to open in Finder.", duration: 5000 });
     }
   };
 
@@ -136,7 +136,8 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
     { label: "Date indexed", value: new Date(item.created_at).toLocaleString() },
     ...(item.volume_name ? [{ label: "Volume", value: item.volume_name }] : []),
     { label: "Availability", value: item.availability },
-    { label: "AI state", value: item.ai_state },
+    { label: "AI Analysis", value: item.llava_state + (item.llava_version ? ` (v${item.llava_version})` : "") },
+    ...(item.type === "video" ? [{ label: "Poster Frame", value: item.ai_state }] : []),
     ...(item.latitude != null && item.longitude != null
       ? [{ label: "GPS", value: formatCoords(item.latitude, item.longitude) }]
       : []),

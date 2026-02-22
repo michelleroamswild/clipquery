@@ -55,6 +55,8 @@ const PROMPT = `Describe this image in detail. Respond with ONLY a JSON object i
 
 Include 8-15 specific tags. Be thorough — tag every visible object (vehicles, animals, buildings, furniture, signs, etc.), people and their actions, the environment/setting, weather, time of day, and mood. Use specific words like "car", "truck", "dog", "mountain" rather than vague terms.
 
+IMPORTANT: Do NOT guess or mention specific place names, cities, countries, landmarks, or locations. Describe only what you can see in the image without identifying where it was taken.
+
 For "colors", list the 3-5 dominant colors in the image using specific names (e.g. "burnt orange", "teal", "golden yellow", "slate gray", "forest green"). Not generic — be precise about the actual hues you see.`;
 
 /** Try to get the capture hour from EXIF DateTimeOriginal */

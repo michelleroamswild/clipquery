@@ -67,7 +67,7 @@ export async function generatePosterFrames(volume?: string): Promise<GenerateRes
       `SELECT id, absolute_path FROM media_items
        WHERE type = 'video'
          AND availability = 'online'
-         AND ai_state IN ('not_started', 'queued')${volumeClause}
+         AND ai_state IN ('not_started', 'queued', 'error')${volumeClause}
        LIMIT ?`
     )
     .all(...params) as { id: number; absolute_path: string }[];
