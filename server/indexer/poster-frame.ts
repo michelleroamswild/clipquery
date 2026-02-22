@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const THUMBNAILS_DIR = path.resolve(__dirname, "../../data/thumbnails");
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 10;
 const CONCURRENCY = 4;
 const TIMEOUT_MS = 30_000;
 

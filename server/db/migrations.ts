@@ -29,11 +29,8 @@ export function runMigrations(db?: Database.Database): void {
     }
   }
 
-  // Apply base schema (handles fresh installs and CREATE IF NOT EXISTS)
-  const schema = fs.readFileSync(SCHEMA_PATH, "utf-8");
-  conn.exec(schema);
-
-  // Incremental migrations for existing databases
+  // Incremental migrations for existing databases (must run BEFORE schema.sql
+  // so that ALTER TABLE adds columns before CREATE INDEX references them)
   if (currentVersion < 2) {
     // v1 → v2: Add GPS coordinate columns
     const cols = conn.pragma("table_info(media_items)") as { name: string }[];
@@ -56,7 +53,7 @@ export function runMigrations(db?: Database.Database): void {
   }
 
   if (currentVersion < 4) {
-    // v3 → v4: Add llava_state column and FTS table
+    // v3 → v4: Add llava_state column
     const cols = conn.pragma("table_info(media_items)") as { name: string }[];
     const colNames = new Set(cols.map((c) => c.name));
     if (!colNames.has("llava_state")) {
@@ -64,11 +61,12 @@ export function runMigrations(db?: Database.Database): void {
         `ALTER TABLE media_items ADD COLUMN llava_state TEXT NOT NULL DEFAULT 'not_started'`
       );
     }
-    // FTS5 table (CREATE VIRTUAL TABLE IF NOT EXISTS handled by schema.sql re-exec above)
-    conn.exec(
-      `CREATE INDEX IF NOT EXISTS idx_media_llava_state ON media_items(llava_state)`
-    );
   }
+
+  // Apply base schema (handles fresh installs via CREATE IF NOT EXISTS,
+  // and creates indexes/FTS tables for existing databases)
+  const schema = fs.readFileSync(SCHEMA_PATH, "utf-8");
+  conn.exec(schema);
 
   // Upsert version
   if (tableExists) {

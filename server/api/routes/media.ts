@@ -14,6 +14,7 @@ router.get("/media", (req, res) => {
   const volume = req.query.volume as string | undefined;
   const fileExt = req.query.file_ext as string | undefined;
   const hasGps = req.query.has_gps as string | undefined;
+  const llavaState = req.query.llava_state as string | undefined;
   const mtimeSince = req.query.mtime_since as string | undefined;
   const sort = (req.query.sort as string) || "updated_at";
   const order = (req.query.order as string) || "desc";
@@ -43,6 +44,10 @@ router.get("/media", (req, res) => {
     conditions.push("latitude IS NOT NULL AND longitude IS NOT NULL");
   } else if (hasGps === "false") {
     conditions.push("(latitude IS NULL OR longitude IS NULL)");
+  }
+  if (llavaState) {
+    conditions.push("llava_state = @llavaState");
+    params.llavaState = llavaState;
   }
   if (mtimeSince) {
     const sinceMs = parseInt(mtimeSince);

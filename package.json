@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "dev:server": "tsx watch server/api/server.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "index": "tsx server/indexer/index-media.ts"
+    "index": "tsx server/indexer/index-media.ts",
+    "analyze": "tsx server/indexer/run-llava.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

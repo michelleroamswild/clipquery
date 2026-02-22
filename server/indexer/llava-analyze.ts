@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +10,7 @@ const THUMBNAILS_DIR = path.resolve(__dirname, "../../data/thumbnails");
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const MODEL = "llava:13b";
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 1;
 const CONCURRENCY = 1; // Serial — Ollama uses all GPU for one inference
 const MAX_RETRIES = 2;
 
@@ -169,9 +170,52 @@ export function getImagePath(item: MediaRow): string | null {
     return fs.existsSync(item.absolute_path) ? item.absolute_path : null;
   }
 
-  // RAW: check for cached thumbnail
+  // RAW: check for cached thumbnail, generate if missing
   const cachedPath = path.join(THUMBNAILS_DIR, `photo-${item.id}.jpg`);
-  return fs.existsSync(cachedPath) ? cachedPath : null;
+  if (fs.existsSync(cachedPath)) return cachedPath;
+
+  // Try to generate a thumbnail for RAW files
+  if (fs.existsSync(item.absolute_path)) {
+    try {
+      return convertRawToJpeg(item.absolute_path, cachedPath);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Convert a RAW photo to JPEG thumbnail, trying ffmpeg then exiftool */
+function convertRawToJpeg(inputPath: string, outputPath: string): string | null {
+  // Ensure thumbnails dir exists
+  const dir = path.dirname(outputPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  try {
+    execFileSync("ffmpeg", [
+      "-i", inputPath,
+      "-vf", "scale=320:-1",
+      "-frames:v", "1",
+      "-q:v", "6",
+      "-y",
+      outputPath,
+    ], { timeout: 30_000 });
+    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return outputPath;
+  } catch {
+    // fallback
+  }
+
+  try {
+    execFileSync("bash", [
+      "-c",
+      `exiftool -b -PreviewImage "${inputPath}" > "${outputPath}"`,
+    ], { timeout: 30_000 });
+    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return outputPath;
+  } catch {
+    // both failed
+  }
+
+  return null;
 }
 
 // ── Batch analysis ─────────────────────────────────────────────
@@ -190,20 +234,23 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
   const volumeClause = volume ? " AND m.volume_name = ?" : "";
   const baseParams: string[] = volume ? [volume] : [];
 
-  // We need to find items with llava_state in (not_started, queued) that have images available.
-  // For videos: ai_state must be 'done' (poster frame exists)
-  // For photos: availability must be 'online'
+  // Only pick items that have an image available:
+  // Videos need ai_state='done' (poster frame exists), photos just need to be online
   const items = db
     .prepare(
       `SELECT m.id, m.type, m.absolute_path, m.file_ext, m.ai_state
        FROM media_items m
        WHERE m.availability = 'online'
-         AND m.llava_state IN ('not_started', 'queued')${volumeClause}
+         AND m.llava_state IN ('not_started', 'queued')
+         AND (
+           (m.type = 'video' AND m.ai_state = 'done')
+           OR m.type = 'photo'
+         )${volumeClause}
        LIMIT ?`
     )
     .all(...baseParams, BATCH_SIZE) as MediaRow[];
 
-  // Filter to items that actually have an image path
+  // Verify the image file actually exists on disk
   const analyzable = items.filter((item) => getImagePath(item) !== null);
 
   if (analyzable.length === 0) {
@@ -273,7 +320,11 @@ function countRemaining(volume?: string): number {
     .prepare(
       `SELECT COUNT(*) as count FROM media_items
        WHERE availability = 'online'
-         AND llava_state IN ('not_started', 'queued')${volumeClause}`
+         AND llava_state IN ('not_started', 'queued')
+         AND (
+           (type = 'video' AND ai_state = 'done')
+           OR type = 'photo'
+         )${volumeClause}`
     )
     .get(...params) as { count: number };
   return row.count;
@@ -288,6 +339,73 @@ export interface LlavaStatus {
   error: number;
   analyzable: number;
 }
+
+// ── Background worker ───────────────────────────────────────────
+
+interface BackgroundState {
+  running: boolean;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  remaining: number;
+  volume?: string;
+  limit?: number;
+  startedAt?: number;
+}
+
+const bgState: BackgroundState = {
+  running: false,
+  processed: 0,
+  succeeded: 0,
+  failed: 0,
+  remaining: 0,
+};
+
+export function getBackgroundStatus(): BackgroundState {
+  return { ...bgState };
+}
+
+export function startBackgroundAnalysis(volume?: string, limit?: number): boolean {
+  if (bgState.running) return false; // already running
+
+  bgState.running = true;
+  bgState.processed = 0;
+  bgState.succeeded = 0;
+  bgState.failed = 0;
+  bgState.remaining = 0;
+  bgState.volume = volume;
+  bgState.limit = limit;
+  bgState.startedAt = Date.now();
+
+  // Fire and forget — runs in the background
+  (async () => {
+    try {
+      while (bgState.running) {
+        if (bgState.limit != null && bgState.processed >= bgState.limit) break;
+        const res = await analyzeBatch(bgState.volume);
+        bgState.processed += res.processed;
+        bgState.succeeded += res.succeeded;
+        bgState.failed += res.failed;
+        bgState.remaining = res.remaining;
+        if (res.processed === 0) break;
+      }
+    } catch (err) {
+      console.error("Background LLaVA analysis error:", (err as Error).message);
+    } finally {
+      bgState.running = false;
+    }
+  })();
+
+  return true;
+}
+
+export function stopBackgroundAnalysis(): boolean {
+  if (!bgState.running) return false;
+  bgState.running = false;
+  return true;
+}
+
+// ── Status ─────────────────────────────────────────────────────
 
 export function llavaStatus(volume?: string): LlavaStatus {
   const db = getDb();

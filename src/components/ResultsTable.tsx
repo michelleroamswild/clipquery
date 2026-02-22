@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Copy, Image, MapPin } from "@phosphor-icons/react";
+import { ArrowSquareOut, Brain, Copy, Image, MapPin } from "@phosphor-icons/react";
 import {
   Table,
   TableBody,
@@ -98,9 +98,10 @@ export function ResultsTable(props: ResultsTableProps) {
           {isSearch && <TableHead className="h-8 px-2 text-xs w-[70px]">Time</TableHead>}
           {isSearch && <TableHead className="h-8 px-2 text-xs w-[60px]">Score</TableHead>}
           <TableHead className="h-8 px-2 text-xs w-[60px]">Type</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[70px]">Size</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[100px]">Date Created</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[260px]">Location</TableHead>
+          {!isSearch && <TableHead className="h-8 px-2 text-xs w-[32px] text-center" title="AI Analyzed"><Brain className="h-3 w-3 inline" /></TableHead>}
           <TableHead className="h-8 px-2 text-xs w-[70px]" />
         </TableRow>
       </TableHeader>
@@ -163,6 +164,13 @@ export function ResultsTable(props: ResultsTableProps) {
                 <span className="text-muted-foreground/50">—</span>
               )}
             </TableCell>
+            {!isSearch && (
+              <TableCell className="px-2 py-1.5 text-center">
+                {"mediaItem" in row && row.mediaItem.llava_state === "done" && (
+                  <Brain className="h-3 w-3 text-violet-400 inline" title="AI analyzed" />
+                )}
+              </TableCell>
+            )}
             <TableCell className="px-2 py-1.5">
               <div className="flex items-center gap-0.5">
                 <Button

@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { MagnifyingGlass, Faders, MapPin, FilmStrip, CaretDown, Brain } from "@phosphor-icons/react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { MagnifyingGlass, Faders, MapPin, FilmStrip, CaretDown, Brain, Stop } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,8 @@ import { VideoSearchSidebar } from "@/components/VideoSearchSidebar";
 import { ResultsTable } from "@/components/ResultsTable";
 import { MediaDetailSheet } from "@/components/MediaDetailSheet";
 import { mockSearch } from "@/lib/mock-data";
-import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, triggerLlavaAnalysis, fetchLlavaStatus, fetchOllamaHealth, searchMedia } from "@/lib/api-client";
+import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, fetchLlavaStatus, fetchOllamaHealth, searchMedia, startBackgroundAnalysis, stopBackgroundAnalysis, fetchBackgroundStatus } from "@/lib/api-client";
+import { toast } from "@/hooks/use-toast";
 import { useMediaList, useMediaStats, useMediaExtensions } from "@/hooks/use-media";
 import { useQueryClient } from "@tanstack/react-query";
 import { useScanDirectory } from "@/hooks/use-scan";
@@ -65,6 +66,7 @@ const Index = () => {
   const [typeFilter, setTypeFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [volumeFilter, setVolumeFilter] = useState("all");
+  const [aiFilter, setAiFilter] = useState("all");
 
   // Browse-mode sort & pagination (server-side)
   const [browseSort, setBrowseSort] = useState("mtime_ms");
@@ -92,6 +94,7 @@ const Index = () => {
     volume: volumeFilter !== "all" ? volumeFilter : undefined,
     file_ext: typeFilter !== "all" ? typeFilter : undefined,
     has_gps: locationFilter === "has" ? "true" : locationFilter === "none" ? "false" : undefined,
+    llava_state: aiFilter !== "all" ? aiFilter : undefined,
     mtime_since: mtimeSince,
     sort: browseSort,
     order: browseOrder,
@@ -112,6 +115,7 @@ const Index = () => {
   const [llavaAnalyzing, setLlavaAnalyzing] = useState(false);
   const [llavaAnalyzable, setLlavaAnalyzable] = useState(0);
   const [ollamaHealthy, setOllamaHealthy] = useState(false);
+  const llavaAbortRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check geocode + thumbnail + llava status on mount, after scans, and when volume filter changes
   useEffect(() => {
@@ -120,21 +124,54 @@ const Index = () => {
     fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
     fetchLlavaStatus(vol).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
     fetchOllamaHealth().then((h) => setOllamaHealthy(h.running && h.model_loaded)).catch(() => setOllamaHealthy(false));
+    // Resume UI state if background analysis is already running
+    fetchBackgroundStatus().then((bg) => {
+      if (bg.running && !llavaAbortRef.current) {
+        setLlavaAnalyzing(true);
+        const t = toast({ title: "AI Analysis", description: `${bg.processed} done, ${bg.remaining.toLocaleString()} remaining` });
+        const poll = setInterval(async () => {
+          try {
+            const s = await fetchBackgroundStatus();
+            setLlavaAnalyzable(s.remaining);
+            if (s.running) {
+              t.update({ title: "AI Analysis", description: `${s.processed} done, ${s.remaining.toLocaleString()} remaining` });
+              queryClient.invalidateQueries({ queryKey: ["media"] });
+            } else {
+              clearInterval(poll);
+              setLlavaAnalyzing(false);
+              queryClient.invalidateQueries({ queryKey: ["media"] });
+              t.update({ title: "AI Analysis complete", description: `${s.succeeded} succeeded${s.failed > 0 ? `, ${s.failed} failed` : ""}` });
+              setTimeout(() => t.dismiss(), 5000);
+            }
+          } catch {
+            clearInterval(poll);
+            setLlavaAnalyzing(false);
+          }
+        }, 3000);
+        llavaAbortRef.current = poll;
+      }
+    }).catch(() => {});
   }, [totalCount, volumeFilter]);
 
   const handleGeocode = useCallback(async () => {
     setGeocoding(true);
+    let total = 0;
+    const t = toast({ title: "Geocoding", description: "Starting..." });
     try {
       let remaining = Infinity;
       while (remaining > 0) {
         const res = await triggerGeocode();
         remaining = res.remaining;
+        total += res.processed;
         setGeocodePending(remaining);
-        // Refresh browse data to show new location names
+        t.update({ title: "Geocoding", description: `${total} done, ${remaining} remaining` });
         queryClient.invalidateQueries({ queryKey: ["media"] });
       }
+      t.update({ title: "Geocoding complete", description: `${total} locations resolved` });
+      setTimeout(() => t.dismiss(), 5000);
     } catch {
-      // stop on error
+      t.update({ title: "Geocoding stopped", description: `${total} done` });
+      setTimeout(() => t.dismiss(), 5000);
     } finally {
       setGeocoding(false);
     }
@@ -144,6 +181,8 @@ const Index = () => {
     setThumbnailGenerating(true);
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
     let processed = 0;
+    const target = limit != null ? ` of ${limit}` : "";
+    const t = toast({ title: "Generating thumbnails", description: "Starting..." });
     try {
       let remaining = Infinity;
       while (remaining > 0 && (limit == null || processed < limit)) {
@@ -151,36 +190,62 @@ const Index = () => {
         remaining = res.remaining;
         processed += res.processed;
         setThumbnailPending(remaining);
+        t.update({ title: "Generating thumbnails", description: `${processed}${target} done, ${remaining} remaining` });
         queryClient.invalidateQueries({ queryKey: ["media"] });
         if (res.processed === 0) break;
       }
+      t.update({ title: "Thumbnails complete", description: `${processed} generated` });
+      setTimeout(() => t.dismiss(), 5000);
     } catch {
-      // stop on error
+      t.update({ title: "Thumbnails stopped", description: `${processed}${target} done` });
+      setTimeout(() => t.dismiss(), 5000);
     } finally {
       setThumbnailGenerating(false);
     }
   }, [queryClient, volumeFilter]);
 
+  // Start background analysis on the server
   const handleLlavaAnalyze = useCallback(async (limit?: number) => {
-    setLlavaAnalyzing(true);
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
-    let processed = 0;
-    try {
-      let remaining = Infinity;
-      while (remaining > 0 && (limit == null || processed < limit)) {
-        const res = await triggerLlavaAnalysis(vol);
-        remaining = res.remaining;
-        processed += res.processed;
-        setLlavaAnalyzable(remaining);
-        queryClient.invalidateQueries({ queryKey: ["media"] });
-        if (res.processed === 0) break;
-      }
-    } catch {
-      // stop on error
-    } finally {
-      setLlavaAnalyzing(false);
+    const res = await startBackgroundAnalysis(vol, limit);
+    if (!res.started) {
+      toast({ title: "AI Analysis", description: "Already running" });
+      return;
     }
+    setLlavaAnalyzing(true);
+    const target = limit != null ? ` of ${limit}` : "";
+    const t = toast({ title: "AI Analysis", description: "Starting..." });
+
+    // Poll server for progress
+    const poll = setInterval(async () => {
+      try {
+        const bg = await fetchBackgroundStatus();
+        setLlavaAnalyzable(bg.remaining);
+        if (bg.running) {
+          t.update({ title: "AI Analysis", description: `${bg.processed}${target} done, ${bg.remaining.toLocaleString()} remaining` });
+          queryClient.invalidateQueries({ queryKey: ["media"] });
+        } else {
+          clearInterval(poll);
+          setLlavaAnalyzing(false);
+          queryClient.invalidateQueries({ queryKey: ["media"] });
+          t.update({ title: "AI Analysis complete", description: `${bg.succeeded} succeeded${bg.failed > 0 ? `, ${bg.failed} failed` : ""}` });
+          setTimeout(() => t.dismiss(), 5000);
+        }
+      } catch {
+        clearInterval(poll);
+        setLlavaAnalyzing(false);
+      }
+    }, 3000);
+    llavaAbortRef.current = poll;
   }, [queryClient, volumeFilter]);
+
+  // Stop background analysis on the server
+  const handleLlavaStop = useCallback(async () => {
+    if (llavaAbortRef.current) clearInterval(llavaAbortRef.current);
+    await stopBackgroundAnalysis();
+    setLlavaAnalyzing(false);
+    toast({ title: "AI Analysis", description: "Stopping after current item..." });
+  }, []);
 
   const handleScan = async (dirPath: string) => {
     await scanMutation.mutateAsync([dirPath]);
@@ -412,6 +477,18 @@ const Index = () => {
                     <SelectItem value="none">No GPS</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <Select value={aiFilter} onValueChange={(v) => { setAiFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-36 text-xs">
+                    <SelectValue placeholder="AI status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any AI status</SelectItem>
+                    <SelectItem value="done">Analyzed</SelectItem>
+                    <SelectItem value="not_started">Not analyzed</SelectItem>
+                    <SelectItem value="error">Error</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
             </div>
@@ -474,38 +551,48 @@ const Index = () => {
                         </DropdownMenu>
                       </div>
                     )}
-                    {ollamaHealthy && llavaAnalyzable > 0 && (
+                    {ollamaHealthy && (llavaAnalyzable > 0 || llavaAnalyzing) && (
                       <div className="flex items-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs rounded-r-none border-r-0"
-                          disabled={llavaAnalyzing}
-                          onClick={() => handleLlavaAnalyze(20)}
-                        >
-                          <Brain className="mr-1 h-3 w-3" />
-                          {llavaAnalyzing
-                            ? `Analyzing... (${llavaAnalyzable.toLocaleString()} left)`
-                            : `AI Analyze (${llavaAnalyzable.toLocaleString()})`}
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                        {llavaAnalyzing ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={handleLlavaStop}
+                          >
+                            <Stop className="mr-1 h-3 w-3" weight="fill" />
+                            Stop ({llavaAnalyzable.toLocaleString()} left)
+                          </Button>
+                        ) : (
+                          <>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="text-xs rounded-l-none px-1.5"
-                              disabled={llavaAnalyzing}
+                              className="text-xs rounded-r-none border-r-0"
+                              onClick={() => handleLlavaAnalyze(20)}
                             >
-                              <CaretDown className="h-3 w-3" />
+                              <Brain className="mr-1 h-3 w-3" />
+                              AI Analyze ({llavaAnalyzable.toLocaleString()})
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleLlavaAnalyze(20)}>Analyze 20</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleLlavaAnalyze(50)}>Analyze 50</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleLlavaAnalyze(100)}>Analyze 100</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleLlavaAnalyze()}>Analyze all</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs rounded-l-none px-1.5"
+                                >
+                                  <CaretDown className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleLlavaAnalyze(20)}>Analyze 20</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleLlavaAnalyze(50)}>Analyze 50</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleLlavaAnalyze(100)}>Analyze 100</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleLlavaAnalyze()}>Analyze all</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
+                        )}
                       </div>
                     )}
                     {geocodePending > 0 && (
