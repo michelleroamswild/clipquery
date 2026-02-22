@@ -162,6 +162,20 @@ export function fetchGeocodeStatus(): Promise<GeocodeStatus> {
   return request<GeocodeStatus>("/geocode/status");
 }
 
+export interface GeocodeSearchResult {
+  display_name: string;
+  lat: number;
+  lon: number;
+}
+
+export interface GeocodeSearchResponse {
+  results: GeocodeSearchResult[];
+}
+
+export function searchGeocode(query: string): Promise<GeocodeSearchResponse> {
+  return request<GeocodeSearchResponse>(`/geocode/search?q=${encodeURIComponent(query)}`);
+}
+
 // --- Thumbnails ---
 
 export interface ThumbnailGenerateResult {
@@ -290,6 +304,49 @@ export interface DashboardResponse {
 
 export function fetchDashboard(): Promise<DashboardResponse> {
   return request<DashboardResponse>("/media/dashboard");
+}
+
+// --- Folders ---
+
+export interface FolderNode {
+  name: string;
+  path: string;
+  itemCount: number;
+  hasChildren: boolean;
+}
+
+export interface FoldersResponse {
+  folders: FolderNode[];
+  rootPath?: string;
+  rootItems?: number;
+}
+
+export interface FolderLocationUpdateParams {
+  folderPath: string;
+  locationName: string;
+  latitude?: number;
+  longitude?: number;
+  includeSubfolders?: boolean;
+  preserveExistingGps?: boolean;
+}
+
+export interface FolderLocationUpdateResponse {
+  updated: number;
+}
+
+export function fetchFolders(volume: string, parent?: string): Promise<FoldersResponse> {
+  const qs = new URLSearchParams({ volume });
+  if (parent) qs.set("parent", parent);
+  return request<FoldersResponse>(`/folders?${qs}`);
+}
+
+export function updateFolderLocation(
+  params: FolderLocationUpdateParams
+): Promise<FolderLocationUpdateResponse> {
+  return request<FolderLocationUpdateResponse>("/folders/location", {
+    method: "PATCH",
+    body: JSON.stringify(params),
+  });
 }
 
 // --- Search ---

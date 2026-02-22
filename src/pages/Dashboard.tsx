@@ -1,4 +1,6 @@
-import { Camera, FilmStrip, Database, Brain, MapPin, HardDrive } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Camera, FilmStrip, Database, Brain, MapPin, HardDrive, SpinnerGap } from "@phosphor-icons/react";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -12,6 +14,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useDashboard, useMediaStats } from "@/hooks/use-media";
 import { useScanDirectory } from "@/hooks/use-scan";
+import { fetchBackgroundStatus, type BackgroundStatus } from "@/lib/api-client";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -29,6 +32,29 @@ const Dashboard = () => {
   const { data, isLoading } = useDashboard();
   const statsQuery = useMediaStats();
   const scanMutation = useScanDirectory();
+  const [bgStatus, setBgStatus] = useState<BackgroundStatus | null>(null);
+
+  // Poll background analysis status
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const check = async () => {
+      try {
+        const s = await fetchBackgroundStatus();
+        setBgStatus(s);
+        if (!s.running && timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      } catch {
+        setBgStatus(null);
+      }
+    };
+
+    check();
+    timer = setInterval(check, 3000);
+    return () => { if (timer) clearInterval(timer); };
+  }, []);
 
   const handleScan = async (dirPath: string) => {
     await scanMutation.mutateAsync([dirPath]);
@@ -239,10 +265,27 @@ const Dashboard = () => {
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span>AI Analysis</span>
+                        <span className="flex items-center gap-1.5">
+                          AI Analysis
+                          {bgStatus?.running && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                              <SpinnerGap className="h-3 w-3 animate-spin" />
+                              Running
+                            </Badge>
+                          )}
+                        </span>
                         <span className="text-muted-foreground">
-                          {llavaDone.toLocaleString()} / {totalCount.toLocaleString()}
-                          {llavaError > 0 && <span className="text-destructive ml-1">({llavaError} errors)</span>}
+                          {bgStatus?.running ? (
+                            <>
+                              {bgStatus.processed.toLocaleString()} done &middot; {bgStatus.remaining.toLocaleString()} remaining
+                              {bgStatus.failed > 0 && <span className="text-destructive ml-1">({bgStatus.failed} failed)</span>}
+                            </>
+                          ) : (
+                            <>
+                              {llavaDone.toLocaleString()} / {totalCount.toLocaleString()}
+                              {llavaError > 0 && <span className="text-destructive ml-1">({llavaError} errors)</span>}
+                            </>
+                          )}
                         </span>
                       </div>
                       <Progress value={llavaPercent} className="h-2" />
@@ -265,31 +308,37 @@ const Dashboard = () => {
                     <h2 className="text-sm font-medium mb-3">Volumes</h2>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {data.volumes.map((vol) => (
-                        <Card key={vol.volume_name}>
-                          <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                            <HardDrive className="h-4 w-4 text-muted-foreground" />
-                            <CardTitle className="text-sm font-medium truncate">
-                              {vol.volume_name ?? "Local"}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-1">
-                            <div className="text-xs text-muted-foreground">
-                              {vol.count.toLocaleString()} items &middot; {formatBytes(vol.size)}
-                            </div>
-                            <div className="flex gap-2 text-xs text-muted-foreground">
-                              {vol.photos > 0 && (
-                                <span className="flex items-center gap-1">
-                                  <Camera className="h-3 w-3" /> {vol.photos.toLocaleString()}
-                                </span>
-                              )}
-                              {vol.videos > 0 && (
-                                <span className="flex items-center gap-1">
-                                  <FilmStrip className="h-3 w-3" /> {vol.videos.toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <Link
+                          key={vol.volume_name}
+                          to={`/volume/${encodeURIComponent(vol.volume_name ?? "Local")}`}
+                          className="block"
+                        >
+                          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                            <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                              <HardDrive className="h-4 w-4 text-muted-foreground" />
+                              <CardTitle className="text-sm font-medium truncate">
+                                {vol.volume_name ?? "Local"}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-1">
+                              <div className="text-xs text-muted-foreground">
+                                {vol.count.toLocaleString()} items &middot; {formatBytes(vol.size)}
+                              </div>
+                              <div className="flex gap-2 text-xs text-muted-foreground">
+                                {vol.photos > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Camera className="h-3 w-3" /> {vol.photos.toLocaleString()}
+                                  </span>
+                                )}
+                                {vol.videos > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <FilmStrip className="h-3 w-3" /> {vol.videos.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </Link>
                       ))}
                     </div>
                   </div>

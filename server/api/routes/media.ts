@@ -222,4 +222,32 @@ router.get("/geocode/status", (_req, res) => {
   res.json({ pending: geocodePending() });
 });
 
+/** GET /api/geocode/search?q=... - Forward geocode (search for a place name) */
+router.get("/geocode/search", async (req, res) => {
+  const q = (req.query.q as string || "").trim();
+  if (!q) {
+    res.json({ results: [] });
+    return;
+  }
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`;
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "ClipQuery/1.0" },
+    });
+    if (!resp.ok) {
+      res.status(502).json({ error: "Nominatim request failed" });
+      return;
+    }
+    const data = (await resp.json()) as { display_name: string; lat: string; lon: string }[];
+    const results = data.map((r) => ({
+      display_name: r.display_name,
+      lat: parseFloat(r.lat),
+      lon: parseFloat(r.lon),
+    }));
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 export default router;

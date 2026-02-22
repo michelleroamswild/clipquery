@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { FolderOpen, HardDrive, Database, Usb, SpinnerGap, CaretRight, Camera, FilmStrip, MagnifyingGlass, ChartBar } from "@phosphor-icons/react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
@@ -117,7 +118,13 @@ export function VideoSearchSidebar({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <CaretRight className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
                         <Usb className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="text-xs truncate">{vol.name}</span>
+                        <Link
+                          to={`/volume/${encodeURIComponent(vol.name)}`}
+                          className="text-xs truncate hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {vol.name}
+                        </Link>
                       </div>
                       {indexed && (
                         <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
