@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -66,6 +66,21 @@ export function runMigrations(db?: Database.Database): void {
   if (currentVersion < 5) {
     // v4 → v5: Rebuild FTS with filename + location_name columns, populate for all items
     conn.exec("DROP TABLE IF EXISTS media_fts");
+  }
+
+  if (currentVersion < 6) {
+    // v5 → v6: Add llava_version column to track analysis prompt version
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("llava_version")) {
+      conn.exec(
+        `ALTER TABLE media_items ADD COLUMN llava_version INTEGER NOT NULL DEFAULT 0`
+      );
+      // Mark existing analyzed items as v1
+      conn.exec(
+        `UPDATE media_items SET llava_version = 1 WHERE llava_state = 'done'`
+      );
+    }
   }
 
   // Apply base schema (handles fresh installs via CREATE IF NOT EXISTS,

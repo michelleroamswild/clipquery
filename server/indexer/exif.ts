@@ -2,7 +2,7 @@ import exifr from "exifr";
 import { extractVideoGps } from "./video-gps.js";
 
 /** Extensions that can contain EXIF GPS data */
-const GPS_CAPABLE_EXTS = new Set([
+export const GPS_CAPABLE_EXTS = new Set([
   ".jpg",
   ".jpeg",
   ".heic",

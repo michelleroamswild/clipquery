@@ -1,4 +1,4 @@
--- clipquery schema v5
+-- clipquery schema v6
 
 CREATE TABLE IF NOT EXISTS media_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS media_items (
   index_state   TEXT NOT NULL DEFAULT 'unindexed' CHECK (index_state IN ('unindexed', 'needs_reindex', 'indexed')),
   ai_state      TEXT NOT NULL DEFAULT 'not_started' CHECK (ai_state IN ('not_started', 'queued', 'done', 'error')),
   llava_state   TEXT NOT NULL DEFAULT 'not_started' CHECK (llava_state IN ('not_started', 'queued', 'done', 'error')),
+  llava_version INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

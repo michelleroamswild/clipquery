@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import exifr from "exifr";
 import { getDb } from "../db/connection.js";
 import { processWithConcurrency } from "./utils.js";
 
@@ -46,16 +47,51 @@ export async function checkOllamaHealth(): Promise<OllamaHealth> {
 export interface LlavaResult {
   description: string;
   tags: string[];
+  colors: string[];
 }
 
-const PROMPT = `Analyze this image. Respond with ONLY a JSON object in this exact format, nothing else:
-{"description": "A detailed 1-2 sentence description of the image", "tags": ["tag1", "tag2", "tag3"]}
+const PROMPT = `Describe this image in detail. Respond with ONLY a JSON object in this exact format, nothing else:
+{"description": "A detailed 2-3 sentence description of everything visible in the image", "tags": ["tag1", "tag2", "tag3"], "colors": ["color1", "color2"]}
 
-Include 5-10 descriptive tags covering: subjects, setting, colors, mood, activities, objects.`;
+Include 8-15 specific tags. Be thorough — tag every visible object (vehicles, animals, buildings, furniture, signs, etc.), people and their actions, the environment/setting, weather, time of day, and mood. Use specific words like "car", "truck", "dog", "mountain" rather than vague terms.
 
-export async function analyzeImage(imagePath: string): Promise<LlavaResult> {
+For "colors", list the 3-5 dominant colors in the image using specific names (e.g. "burnt orange", "teal", "golden yellow", "slate gray", "forest green"). Not generic — be precise about the actual hues you see.`;
+
+/** Try to get the capture hour from EXIF DateTimeOriginal */
+async function getCaptureHour(originalPath: string): Promise<number | null> {
+  try {
+    const exif = await exifr.parse(originalPath, ["DateTimeOriginal"]);
+    if (exif?.DateTimeOriginal instanceof Date) {
+      return exif.DateTimeOriginal.getHours();
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function timeOfDayLabel(hour: number): string {
+  if (hour >= 5 && hour < 8) return "early morning (sunrise time)";
+  if (hour >= 8 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 14) return "midday";
+  if (hour >= 14 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 20) return "evening (sunset time)";
+  if (hour >= 20 && hour < 22) return "dusk/twilight";
+  return "night";
+}
+
+export async function analyzeImage(imagePath: string, originalPath?: string): Promise<LlavaResult> {
   const imageBuffer = fs.readFileSync(imagePath);
   const base64Image = imageBuffer.toString("base64");
+
+  // Build prompt with time-of-day context if available
+  let prompt = PROMPT;
+  if (originalPath) {
+    const hour = await getCaptureHour(originalPath);
+    if (hour != null) {
+      prompt += `\n\nMetadata context: This photo was taken during the ${timeOfDayLabel(hour)} (${hour}:00). Use this to correctly distinguish sunrise vs sunset and other time-dependent observations.`;
+    }
+  }
 
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -65,7 +101,7 @@ export async function analyzeImage(imagePath: string): Promise<LlavaResult> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: MODEL,
-          prompt: PROMPT,
+          prompt,
           images: [base64Image],
           stream: false,
           options: { temperature: 0.1 },
@@ -122,7 +158,14 @@ function parseResponse(raw: string): LlavaResult {
         tags.push(m[1]);
       }
     }
-    return { description: descMatch[1], tags };
+    const colors: string[] = [];
+    const colorsMatch = raw.match(/"colors"\s*:\s*\[([\s\S]*?)\]/);
+    if (colorsMatch) {
+      for (const m of colorsMatch[1].matchAll(/"([^"]+)"/g)) {
+        colors.push(m[1]);
+      }
+    }
+    return { description: descMatch[1], tags, colors };
   }
 
   throw new Error(`Failed to parse LLaVA response: ${raw.substring(0, 200)}`);
@@ -136,6 +179,9 @@ function validateResult(obj: unknown): LlavaResult {
   return {
     description: o.description,
     tags: o.tags.filter((t): t is string => typeof t === "string"),
+    colors: Array.isArray(o.colors)
+      ? o.colors.filter((c): c is string => typeof c === "string")
+      : [],
   };
 }
 
@@ -196,9 +242,9 @@ function convertRawToJpeg(inputPath: string, outputPath: string): string | null 
   try {
     execFileSync("ffmpeg", [
       "-i", inputPath,
-      "-vf", "scale=320:-1",
+      "-vf", "scale=1024:-1",
       "-frames:v", "1",
-      "-q:v", "6",
+      "-q:v", "3",
       "-y",
       outputPath,
     ], { timeout: 30_000 });
@@ -269,7 +315,7 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
   })();
 
   const markDone = db.prepare(
-    "UPDATE media_items SET llava_state = 'done' WHERE id = ?"
+    "UPDATE media_items SET llava_state = 'done', llava_version = 2 WHERE id = ?"
   );
   const markError = db.prepare(
     "UPDATE media_items SET llava_state = 'error' WHERE id = ?"
@@ -287,16 +333,15 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
   await processWithConcurrency(analyzable, CONCURRENCY, async (item) => {
     const imgPath = getImagePath(item)!;
     try {
-      const result = await analyzeImage(imgPath);
-      const jsonStr = JSON.stringify(result);
+      const result = await analyzeImage(imgPath, item.absolute_path);
+      const jsonStr = JSON.stringify({ ...result, version: 2 });
       db.transaction(() => {
         // Remove any existing llava_analysis artifact
         db.prepare(
           "DELETE FROM ai_artifacts WHERE media_item_id = ? AND kind = 'llava_analysis'"
         ).run(item.id);
         insertArtifact.run(item.id, jsonStr);
-        // Remove existing FTS entry if any, then insert
-        db.prepare("DELETE FROM media_fts WHERE rowid = ?").run(item.id);
+        // Insert FTS entry (contentless table — duplicates cleaned up by rebuild)
         insertFts.run(item.id, result.description, result.tags.join(", "), item.filename, item.location_name ?? "");
         markDone.run(item.id);
       })();
@@ -309,6 +354,22 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
       failed++;
     }
   });
+
+  // Recreate FTS index (contentless FTS5 doesn't support rebuild)
+  if (succeeded > 0) {
+    db.exec(`DROP TABLE IF EXISTS media_fts`);
+    db.exec(`CREATE VIRTUAL TABLE media_fts USING fts5(description, tags, filename, location_name, content='', content_rowid='rowid')`);
+    db.exec(`
+      INSERT INTO media_fts (rowid, description, tags, filename, location_name)
+        SELECT m.id,
+               COALESCE(json_extract(a.json, '$.description'), ''),
+               COALESCE((SELECT GROUP_CONCAT(value, ', ') FROM json_each(a.json, '$.tags')), ''),
+               m.filename,
+               COALESCE(m.location_name, '')
+        FROM media_items m
+        LEFT JOIN ai_artifacts a ON a.media_item_id = m.id AND a.kind = 'llava_analysis'
+    `);
+  }
 
   const remaining = countRemaining(volume);
   return { processed: analyzable.length, succeeded, failed, remaining };

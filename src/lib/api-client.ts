@@ -36,6 +36,7 @@ export interface MediaItemRow {
   index_state: "unindexed" | "needs_reindex" | "indexed";
   ai_state: "not_started" | "queued" | "done" | "error";
   llava_state: "not_started" | "queued" | "done" | "error";
+  llava_version: number;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +85,7 @@ export interface MediaListParams {
   file_ext?: string;
   has_gps?: string;
   llava_state?: string;
+  llava_version?: string;
   mtime_since?: string;
   sort?: string;
   order?: "asc" | "desc";
@@ -258,6 +260,10 @@ export function fetchOllamaHealth(): Promise<OllamaHealth> {
   return request<OllamaHealth>("/llava/health");
 }
 
+export function reanalyzeSingle(id: number): Promise<{ ok: boolean; result: unknown }> {
+  return request(`/llava/reanalyze/${id}`, { method: "POST" });
+}
+
 // --- LLaVA Background ---
 
 export interface BackgroundStatus {
@@ -363,6 +369,27 @@ export function updateFolderLocation(
     method: "PATCH",
     body: JSON.stringify(params),
   });
+}
+
+// --- EXIF ---
+
+export interface ExifData {
+  cameraMake: string | null;
+  cameraModel: string | null;
+  lensModel: string | null;
+  iso: number | null;
+  fNumber: number | null;
+  exposureTime: number | null;
+  focalLength: number | null;
+  focalLength35mm: number | null;
+  whiteBalance: string | null;
+  exposureProgram: string | null;
+  flash: string | null;
+  dateTimeOriginal: string | null;
+}
+
+export function fetchExifData(id: number): Promise<ExifData | null> {
+  return request<ExifData | null>(`/media/${id}/exif`, { method: "POST" });
 }
 
 // --- Search ---

@@ -94,7 +94,8 @@ const Index = () => {
     volume: volumeFilter !== "all" ? volumeFilter : undefined,
     file_ext: typeFilter !== "all" ? typeFilter : undefined,
     has_gps: locationFilter === "has" ? "true" : locationFilter === "none" ? "false" : undefined,
-    llava_state: aiFilter !== "all" ? aiFilter : undefined,
+    llava_state: aiFilter === "v1" || aiFilter === "v2" ? "done" : aiFilter !== "all" ? aiFilter : undefined,
+    llava_version: aiFilter === "v1" ? "1" : aiFilter === "v2" ? "2" : undefined,
     mtime_since: mtimeSince,
     sort: browseSort,
     order: browseOrder,
@@ -505,7 +506,9 @@ const Index = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Any AI status</SelectItem>
-                    <SelectItem value="done">Analyzed</SelectItem>
+                    <SelectItem value="done">Analyzed (all)</SelectItem>
+                    <SelectItem value="v2">Analyzed v2</SelectItem>
+                    <SelectItem value="v1">Analyzed v1</SelectItem>
                     <SelectItem value="not_started">Not analyzed</SelectItem>
                     <SelectItem value="error">Error</SelectItem>
                   </SelectContent>
@@ -738,8 +741,10 @@ const Index = () => {
 
         <MediaDetailSheet
           item={selectedItem}
+          items={hasSearched ? visible.map((r) => r.mediaItem!).filter(Boolean) : browseItems}
           open={selectedItem !== null}
           onClose={() => setSelectedItem(null)}
+          onNavigate={setSelectedItem}
         />
       </div>
     </SidebarProvider>

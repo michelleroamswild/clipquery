@@ -201,8 +201,9 @@ router.patch("/folders/location", (req, res) => {
     const ids = affectedIds.map((r) => r.id);
 
     if (ids.length > 0) {
-      const inList = ids.join(",");
-      db.exec(`DELETE FROM media_fts WHERE rowid IN (${inList})`);
+      // Contentless FTS5 doesn't support DELETE or rebuild; drop and recreate
+      db.exec(`DROP TABLE IF EXISTS media_fts`);
+      db.exec(`CREATE VIRTUAL TABLE media_fts USING fts5(description, tags, filename, location_name, content='', content_rowid='rowid')`);
       db.exec(`
         INSERT INTO media_fts (rowid, description, tags, filename, location_name)
           SELECT m.id,
@@ -212,7 +213,6 @@ router.patch("/folders/location", (req, res) => {
                  COALESCE(m.location_name, '')
           FROM media_items m
           LEFT JOIN ai_artifacts a ON a.media_item_id = m.id AND a.kind = 'llava_analysis'
-          WHERE m.id IN (${inList})
       `);
     }
   }

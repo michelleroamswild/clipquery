@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Brain, Copy, Image, MapPin, WifiHigh, WifiSlash } from "@phosphor-icons/react";
+import { ArrowSquareOut, Brain, Image, MapPin, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import {
   Table,
   TableBody,
@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { openInFinder, thumbnailUrl } from "@/lib/api-client";
-import { formatTimestamp, formatFileSize } from "@/lib/mock-data";
+import { formatFileSize } from "@/lib/mock-data";
 import type { MediaItemRow } from "@/lib/api-client";
 import type { SearchResult } from "@/types/video";
 
@@ -37,11 +37,6 @@ function formatCoords(lat: number, lng: number): string {
 export function ResultsTable(props: ResultsTableProps) {
   const isSearch = props.mode === "search";
 
-  const copyPath = (path: string) => {
-    navigator.clipboard.writeText(path);
-    toast({ title: "Copied", description: "Path copied to clipboard." });
-  };
-
   const handleOpenInFinder = async (path: string) => {
     try {
       await openInFinder(path);
@@ -49,13 +44,6 @@ export function ResultsTable(props: ResultsTableProps) {
       toast({ title: "Error", description: "Failed to open in Finder." });
     }
   };
-
-  const scoreColor = (c: number) =>
-    c >= 0.8
-      ? "text-green-400"
-      : c >= 0.6
-        ? "text-yellow-400"
-        : "text-muted-foreground";
 
   // Normalize rows into a common shape
   const rows = isSearch
@@ -69,8 +57,7 @@ export function ResultsTable(props: ResultsTableProps) {
         latitude: r.video.latitude,
         longitude: r.video.longitude,
         locationName: r.video.locationName,
-        timestamp: r.timestamp,
-        confidence: r.confidence,
+        score: r.confidence,
         thumbUrl: thumbnailUrl({ id: r.video.id, type: r.video.type, ai_state: r.video.aiState }),
         mediaItem: r.mediaItem,
       }))
@@ -84,8 +71,7 @@ export function ResultsTable(props: ResultsTableProps) {
         latitude: item.latitude,
         longitude: item.longitude,
         locationName: item.location_name,
-        timestamp: null as number | null,
-        confidence: null as number | null,
+        score: null as number | null,
         thumbUrl: thumbnailUrl(item),
         mediaItem: item,
       }));
@@ -96,14 +82,13 @@ export function ResultsTable(props: ResultsTableProps) {
         <TableRow>
           <TableHead className="h-8 px-2 text-xs w-[48px]" />
           <TableHead className="h-8 px-2 text-xs">Filename</TableHead>
-          {isSearch && <TableHead className="h-8 px-2 text-xs w-[70px]">Time</TableHead>}
           {isSearch && <TableHead className="h-8 px-2 text-xs w-[60px]">Score</TableHead>}
           <TableHead className="h-8 px-2 text-xs w-[60px]">Type</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[100px]">Date Created</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[260px]">Location</TableHead>
-          {!isSearch && <TableHead className="h-8 px-2 text-xs w-[70px]">Status</TableHead>}
-          {!isSearch && <TableHead className="h-8 px-2 text-xs w-[32px] text-center" title="AI Analyzed"><Brain className="h-3 w-3 inline" /></TableHead>}
+          <TableHead className="h-8 px-2 text-xs w-[70px]">Status</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[110px] text-center">AI</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[70px]" />
         </TableRow>
       </TableHeader>
@@ -135,13 +120,8 @@ export function ResultsTable(props: ResultsTableProps) {
               {row.filename}
             </TableCell>
             {isSearch && (
-              <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
-                {row.timestamp != null ? formatTimestamp(row.timestamp) : "—"}
-              </TableCell>
-            )}
-            {isSearch && (
-              <TableCell className={`px-2 py-1.5 text-xs font-medium ${row.confidence != null ? scoreColor(row.confidence) : "text-muted-foreground"}`}>
-                {row.confidence != null ? `${Math.round(row.confidence * 100)}%` : "—"}
+              <TableCell className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                {row.score != null ? Math.abs(Math.round(row.score * 10) / 10) : "—"}
               </TableCell>
             )}
             <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
@@ -166,49 +146,43 @@ export function ResultsTable(props: ResultsTableProps) {
                 <span className="text-muted-foreground/50">—</span>
               )}
             </TableCell>
-            {!isSearch && (
-              <TableCell className="px-2 py-1.5 text-xs">
-                {row.mediaItem && (
-                  row.mediaItem.availability === "online" ? (
-                    <span className="flex items-center gap-1 text-green-400">
-                      <WifiHigh className="h-3 w-3 shrink-0" />
-                      Online
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-muted-foreground/60">
-                      <WifiSlash className="h-3 w-3 shrink-0" />
-                      Offline
-                    </span>
-                  )
-                )}
-              </TableCell>
-            )}
-            {!isSearch && (
-              <TableCell className="px-2 py-1.5 text-center">
-                {row.mediaItem?.llava_state === "done" && (
-                  <Brain className="h-3 w-3 text-violet-400 inline" title="AI analyzed" />
-                )}
-              </TableCell>
-            )}
+            <TableCell className="px-2 py-1.5 text-xs">
+              {row.mediaItem && (
+                row.mediaItem.availability === "online" ? (
+                  <span className="flex items-center gap-1 text-green-400">
+                    <WifiHigh className="h-3 w-3 shrink-0" />
+                    Online
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-muted-foreground/60">
+                    <WifiSlash className="h-3 w-3 shrink-0" />
+                    Offline
+                  </span>
+                )
+              )}
+            </TableCell>
+            <TableCell className="px-2 py-1.5 text-center">
+              {row.mediaItem?.llava_state === "done" && (
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
+                  (row.mediaItem?.llava_version ?? 0) >= 2
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-violet-500/15 text-violet-400"
+                }`}>
+                  <Brain className="h-3 w-3 shrink-0" />
+                  {(row.mediaItem?.llava_version ?? 0) >= 2 ? "Analyzed v2" : "Analyzed"}
+                </span>
+              )}
+            </TableCell>
             <TableCell className="px-2 py-1.5">
               <div className="flex items-center gap-0.5">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  title="Open in Finder"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
                   onClick={(e) => { e.stopPropagation(); handleOpenInFinder(row.fullPath); }}
                 >
-                  <ArrowSquareOut className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  title="Copy path"
-                  onClick={(e) => { e.stopPropagation(); copyPath(row.fullPath); }}
-                >
-                  <Copy className="h-3.5 w-3.5" />
+                  <ArrowSquareOut className="mr-1 h-3.5 w-3.5" />
+                  Open in Finder
                 </Button>
               </div>
             </TableCell>
