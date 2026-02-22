@@ -114,7 +114,9 @@ function FolderDetailPanel({
   }) => void;
   saving: boolean;
 }) {
-  const [selected, setSelected] = useState<GeocodeSearchResult | null>(null);
+  const [locationName, setLocationName] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
   const [includeSubfolders, setIncludeSubfolders] = useState(true);
   const [preserveExistingGps, setPreserveExistingGps] = useState(true);
 
@@ -164,22 +166,19 @@ function FolderDetailPanel({
   }, []);
 
   const selectSuggestion = (result: GeocodeSearchResult) => {
-    setSelected(result);
+    setLocationName(result.display_name);
+    setLat(String(result.lat));
+    setLng(String(result.lon));
     setSearchQuery(result.display_name);
     setShowSuggestions(false);
   };
 
-  const clearSelection = () => {
-    setSelected(null);
-    setSearchQuery("");
-  };
-
   const handleSave = () => {
-    if (!selected) return;
+    if (!locationName.trim() || !lat || !lng) return;
     onSave({
-      locationName: selected.display_name,
-      latitude: selected.lat,
-      longitude: selected.lon,
+      locationName: locationName.trim(),
+      latitude: parseFloat(lat),
+      longitude: parseFloat(lng),
       includeSubfolders,
       preserveExistingGps,
     });
@@ -231,7 +230,11 @@ function FolderDetailPanel({
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  if (!e.target.value.trim()) setSelected(null);
+                  if (!e.target.value.trim()) {
+                    setLocationName("");
+                    setLat("");
+                    setLng("");
+                  }
                 }}
                 className="h-8 text-sm pl-8"
               />
@@ -259,23 +262,45 @@ function FolderDetailPanel({
             </div>
           </div>
 
-          {/* Selected place chip */}
-          {selected && (
-            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 space-y-1">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-medium leading-tight">{selected.display_name}</span>
-                <button
-                  onClick={clearSelection}
-                  className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                {selected.lat.toFixed(5)}, {selected.lon.toFixed(5)}
-              </div>
+          {/* Location name — filled from search, editable */}
+          <div className="space-y-2">
+            <Label htmlFor="location-name" className="text-xs">Location Name</Label>
+            <Input
+              id="location-name"
+              placeholder="Select a place above"
+              value={locationName}
+              onChange={(e) => setLocationName(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          {/* GPS coordinates — filled from search, editable */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="lat" className="text-xs">Latitude</Label>
+              <Input
+                id="lat"
+                type="number"
+                step="any"
+                placeholder="48.8566"
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+                className="h-8 text-sm"
+              />
             </div>
-          )}
+            <div className="space-y-1.5">
+              <Label htmlFor="lng" className="text-xs">Longitude</Label>
+              <Input
+                id="lng"
+                type="number"
+                step="any"
+                placeholder="2.3522"
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+          </div>
 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -302,10 +327,10 @@ function FolderDetailPanel({
 
           <Button
             onClick={handleSave}
-            disabled={saving || !selected}
+            disabled={saving || !locationName.trim() || !lat || !lng}
             className="w-full h-8 text-sm"
           >
-            {saving ? "Saving..." : "Save Location"}
+            {saving ? "Saving..." : "Apply Location to Folder"}
           </Button>
         </div>
       </div>
