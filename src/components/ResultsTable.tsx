@@ -83,6 +83,7 @@ export function ResultsTable(props: ResultsTableProps) {
           <TableHead className="h-8 px-2 text-xs w-[48px]" />
           <TableHead className="h-8 px-2 text-xs">Filename</TableHead>
           {isSearch && <TableHead className="h-8 px-2 text-xs w-[60px]">Score</TableHead>}
+          <TableHead className="h-8 px-2 text-xs w-[120px]">Volume</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[60px]">Type</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[100px]">Date Created</TableHead>
@@ -124,6 +125,9 @@ export function ResultsTable(props: ResultsTableProps) {
                 {row.score != null ? Math.abs(Math.round(row.score * 10) / 10) : "—"}
               </TableCell>
             )}
+            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px]" title={row.mediaItem?.volume_name ?? ""}>
+              {row.mediaItem?.volume_name ?? "—"}
+            </TableCell>
             <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
               .{row.ext}
             </TableCell>

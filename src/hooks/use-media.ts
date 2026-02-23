@@ -29,10 +29,11 @@ export function useMediaExtensions() {
   });
 }
 
-export function useDashboard() {
+export function useDashboard(refetchInterval?: number | false) {
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboard,
+    refetchInterval: refetchInterval || false,
   });
 }
 

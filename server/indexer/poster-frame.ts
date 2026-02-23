@@ -67,7 +67,7 @@ export async function generatePosterFrames(volume?: string): Promise<GenerateRes
       `SELECT id, absolute_path FROM media_items
        WHERE type = 'video'
          AND availability = 'online'
-         AND ai_state IN ('not_started', 'queued', 'error')${volumeClause}
+         AND ai_state IN ('not_started', 'queued')${volumeClause}
        LIMIT ?`
     )
     .all(...params) as { id: number; absolute_path: string }[];
@@ -144,7 +144,7 @@ export function thumbnailStatus(volume?: string): ThumbnailStatus {
   const rows = db
     .prepare(
       `SELECT ai_state, COUNT(*) as count FROM media_items
-       WHERE type = 'video'${volumeClause}
+       WHERE type = 'video' AND availability = 'online'${volumeClause}
        GROUP BY ai_state`
     )
     .all(...params) as { ai_state: string; count: number }[];

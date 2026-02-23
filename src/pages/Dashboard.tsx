@@ -30,11 +30,11 @@ function stateCount(states: { state: string; count: number }[], key: string): nu
 }
 
 const Dashboard = () => {
-  const { data, isLoading } = useDashboard();
+  const [bgStatus, setBgStatus] = useState<BackgroundStatus | null>(null);
+  const { data, isLoading } = useDashboard(bgStatus?.running ? 5000 : false);
   const statsQuery = useMediaStats();
   const gpsQuery = useGpsPoints();
   const scanMutation = useScanDirectory();
-  const [bgStatus, setBgStatus] = useState<BackgroundStatus | null>(null);
 
   // Poll background analysis status
   useEffect(() => {
@@ -269,7 +269,7 @@ const Dashboard = () => {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span>Poster Frames</span>
+                        <span>Thumbnails</span>
                         <span className="text-muted-foreground">
                           {aiDone.toLocaleString()} / {videoCount.toLocaleString()}
                           {aiError > 0 && <span className="text-destructive ml-1">({aiError} errors)</span>}
@@ -289,17 +289,8 @@ const Dashboard = () => {
                           )}
                         </span>
                         <span className="text-muted-foreground">
-                          {bgStatus?.running ? (
-                            <>
-                              {bgStatus.processed.toLocaleString()} done &middot; {bgStatus.remaining.toLocaleString()} remaining
-                              {bgStatus.failed > 0 && <span className="text-destructive ml-1">({bgStatus.failed} failed)</span>}
-                            </>
-                          ) : (
-                            <>
-                              {llavaDone.toLocaleString()} / {totalCount.toLocaleString()}
-                              {llavaError > 0 && <span className="text-destructive ml-1">({llavaError} errors)</span>}
-                            </>
-                          )}
+                          {llavaDone.toLocaleString()} / {totalCount.toLocaleString()}
+                          {llavaError > 0 && <span className="text-destructive ml-1">({llavaError} errors)</span>}
                         </span>
                       </div>
                       <Progress value={llavaPercent} className="h-2" />

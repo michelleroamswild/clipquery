@@ -137,7 +137,7 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
     ...(item.volume_name ? [{ label: "Volume", value: item.volume_name }] : []),
     { label: "Availability", value: item.availability },
     { label: "AI Analysis", value: item.llava_state + (item.llava_version ? ` (v${item.llava_version})` : "") },
-    ...(item.type === "video" ? [{ label: "Poster Frame", value: item.ai_state }] : []),
+    ...(item.type === "video" ? [{ label: "Thumbnail", value: item.ai_state }] : []),
     ...(item.latitude != null && item.longitude != null
       ? [{ label: "GPS", value: formatCoords(item.latitude, item.longitude) }]
       : []),

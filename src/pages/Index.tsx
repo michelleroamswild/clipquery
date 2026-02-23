@@ -122,7 +122,7 @@ const Index = () => {
   useEffect(() => {
     fetchGeocodeStatus().then((s) => setGeocodePending(s.pending)).catch(() => {});
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
-    fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued + s.error)).catch(() => {});
+    fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
     fetchLlavaStatus(vol).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
     fetchOllamaHealth().then((h) => setOllamaHealthy(h.running && h.model_loaded)).catch(() => setOllamaHealthy(false));
     // Resume UI state if background analysis is already running
