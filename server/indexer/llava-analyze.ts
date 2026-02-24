@@ -277,12 +277,15 @@ export interface AnalyzeResult {
   remaining: number;
 }
 
-export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
+export async function analyzeBatch(volume?: string, type?: string): Promise<AnalyzeResult> {
   const db = getDb();
 
   // Pick items that are not_started or queued AND have an available image
   const volumeClause = volume ? " AND m.volume_name = ?" : "";
-  const baseParams: string[] = volume ? [volume] : [];
+  const typeClause = type ? " AND m.type = ?" : "";
+  const baseParams: string[] = [];
+  if (volume) baseParams.push(volume);
+  if (type) baseParams.push(type);
 
   // Only pick items that have an image available:
   // Videos need ai_state='done' (poster frame exists), photos just need to be online
@@ -295,7 +298,8 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
          AND (
            (m.type = 'video' AND m.ai_state = 'done')
            OR m.type = 'photo'
-         )${volumeClause}
+         )${volumeClause}${typeClause}
+       ORDER BY m.mtime_ms DESC
        LIMIT ?`
     )
     .all(...baseParams, BATCH_SIZE) as MediaRow[];
@@ -304,7 +308,7 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
   const analyzable = items.filter((item) => getImagePath(item) !== null);
 
   if (analyzable.length === 0) {
-    const remaining = countRemaining(volume);
+    const remaining = countRemaining(volume, type);
     return { processed: 0, succeeded: 0, failed: 0, remaining };
   }
 
@@ -349,10 +353,15 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
       })();
       succeeded++;
     } catch (err) {
-      console.error(
-        `LLaVA analysis failed for ${item.absolute_path}: ${(err as Error).message}`
-      );
-      markError.run(item.id);
+      const errMsg = (err as Error).message;
+      console.error(`LLaVA analysis failed for ${item.absolute_path}: ${errMsg}`);
+      db.transaction(() => {
+        markError.run(item.id);
+        db.prepare("DELETE FROM ai_artifacts WHERE media_item_id = ? AND kind = 'llava_error'").run(item.id);
+        db.prepare("INSERT INTO ai_artifacts (media_item_id, kind, json) VALUES (?, 'llava_error', ?)").run(
+          item.id, JSON.stringify({ error: errMsg, timestamp: new Date().toISOString() })
+        );
+      })();
       failed++;
     }
   });
@@ -373,14 +382,17 @@ export async function analyzeBatch(volume?: string): Promise<AnalyzeResult> {
     `);
   }
 
-  const remaining = countRemaining(volume);
+  const remaining = countRemaining(volume, type);
   return { processed: analyzable.length, succeeded, failed, remaining };
 }
 
-function countRemaining(volume?: string): number {
+function countRemaining(volume?: string, type?: string): number {
   const db = getDb();
   const volumeClause = volume ? " AND volume_name = ?" : "";
-  const params = volume ? [volume] : [];
+  const typeClause = type ? " AND type = ?" : "";
+  const params: string[] = [];
+  if (volume) params.push(volume);
+  if (type) params.push(type);
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM media_items
@@ -389,7 +401,7 @@ function countRemaining(volume?: string): number {
          AND (
            (type = 'video' AND ai_state = 'done')
            OR type = 'photo'
-         )${volumeClause}`
+         )${volumeClause}${typeClause}`
     )
     .get(...params) as { count: number };
   return row.count;
@@ -414,6 +426,7 @@ interface BackgroundState {
   failed: number;
   remaining: number;
   volume?: string;
+  type?: string;
   limit?: number;
   startedAt?: number;
 }
@@ -430,7 +443,7 @@ export function getBackgroundStatus(): BackgroundState {
   return { ...bgState };
 }
 
-export function startBackgroundAnalysis(volume?: string, limit?: number): boolean {
+export function startBackgroundAnalysis(volume?: string, limit?: number, type?: string): boolean {
   if (bgState.running) return false; // already running
 
   bgState.running = true;
@@ -439,6 +452,7 @@ export function startBackgroundAnalysis(volume?: string, limit?: number): boolea
   bgState.failed = 0;
   bgState.remaining = 0;
   bgState.volume = volume;
+  bgState.type = type;
   bgState.limit = limit;
   bgState.startedAt = Date.now();
 
@@ -447,7 +461,7 @@ export function startBackgroundAnalysis(volume?: string, limit?: number): boolea
     try {
       while (bgState.running) {
         if (bgState.limit != null && bgState.processed >= bgState.limit) break;
-        const res = await analyzeBatch(bgState.volume);
+        const res = await analyzeBatch(bgState.volume, bgState.type);
         bgState.processed += res.processed;
         bgState.succeeded += res.succeeded;
         bgState.failed += res.failed;
@@ -472,15 +486,18 @@ export function stopBackgroundAnalysis(): boolean {
 
 // ── Status ─────────────────────────────────────────────────────
 
-export function llavaStatus(volume?: string): LlavaStatus {
+export function llavaStatus(volume?: string, type?: string): LlavaStatus {
   const db = getDb();
   const volumeClause = volume ? " AND volume_name = ?" : "";
-  const params = volume ? [volume] : [];
+  const typeClause = type ? " AND type = ?" : "";
+  const params: string[] = [];
+  if (volume) params.push(volume);
+  if (type) params.push(type);
 
   const rows = db
     .prepare(
       `SELECT llava_state, COUNT(*) as count FROM media_items
-       WHERE availability = 'online'${volumeClause}
+       WHERE availability = 'online'${volumeClause}${typeClause}
        GROUP BY llava_state`
     )
     .all(...params) as { llava_state: string; count: number }[];
@@ -509,7 +526,7 @@ export function llavaStatus(volume?: string): LlavaStatus {
          AND (
            (type = 'video' AND ai_state = 'done')
            OR (type = 'photo')
-         )${volumeClause}`
+         )${volumeClause}${typeClause}`
     )
     .get(...params) as { count: number };
   counts.analyzable = analyzableRow.count;

@@ -35,6 +35,7 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
   const [llavaVersion, setLlavaVersion] = useState<number>(1);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [exifData, setExifData] = useState<ExifData | null>(null);
+  const [errors, setErrors] = useState<{ kind: string; error: string; timestamp: string }[]>([]);
 
   // Reset generated URL and LLaVA data when switching items
   if (item && item.id !== lastItemId) {
@@ -47,6 +48,7 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
     setLlavaVersion(1);
     setReanalyzing(false);
     setExifData(null);
+    setErrors([]);
   }
 
   // Fetch LLaVA analysis data from artifacts and EXIF data
@@ -67,6 +69,17 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
             // ignore parse errors
           }
         }
+        // Extract error artifacts
+        const errorArtifacts = (detail.artifacts as { kind: string; json?: string }[])
+          .filter((a) => a.kind === "llava_error" || a.kind === "thumbnail_error")
+          .map((a) => {
+            try {
+              const data = JSON.parse(a.json ?? "{}") as { error: string; timestamp: string };
+              return { kind: a.kind, error: data.error, timestamp: data.timestamp };
+            } catch { return null; }
+          })
+          .filter(Boolean) as { kind: string; error: string; timestamp: string }[];
+        setErrors(errorArtifacts);
       })
       .catch(() => {});
     fetchExifData(item.id)
@@ -241,6 +254,23 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
                 </div>
               ))}
             </div>
+
+            {/* Errors */}
+            {errors.length > 0 && (
+              <div className="space-y-2">
+                {errors.map((err, i) => (
+                  <div key={i} className="rounded-md bg-red-500/10 border border-red-500/20 px-3 py-2">
+                    <div className="text-xs font-medium text-red-400">
+                      {err.kind === "thumbnail_error" ? "Thumbnail Error" : "Analysis Error"}
+                    </div>
+                    <p className="text-xs text-red-300/80 mt-1 break-words">{err.error}</p>
+                    {err.timestamp && (
+                      <p className="text-[10px] text-muted-foreground mt-1">{new Date(err.timestamp).toLocaleString()}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Camera EXIF */}
             {exifData && (exifData.cameraMake || exifData.cameraModel || exifData.lensModel || exifData.fNumber != null) && (

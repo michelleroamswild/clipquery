@@ -27,24 +27,25 @@ export async function extractPosterFrame(
   inputPath: string,
   outputPath: string
 ): Promise<void> {
-  // Fast seek to 1s and grab a single frame
-  await execFileAsync(
-    "ffmpeg",
-    [
-      "-ss", "1",
-      "-i", inputPath,
-      "-vf", "scale=320:-1",
-      "-frames:v", "1",
-      "-q:v", "6",
-      "-y",
-      outputPath,
-    ],
-    { timeout: TIMEOUT_MS }
-  );
-
-  if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size === 0) {
-    throw new Error("ffmpeg produced no output");
+  // Try seeking to 1s first, fall back to 0s for short clips
+  for (const ss of ["1", "0"]) {
+    await execFileAsync(
+      "ffmpeg",
+      [
+        "-ss", ss,
+        "-i", inputPath,
+        "-vf", "scale=320:-1,format=yuvj420p",
+        "-frames:v", "1",
+        "-q:v", "6",
+        "-y",
+        outputPath,
+      ],
+      { timeout: TIMEOUT_MS }
+    ).catch(() => {});
+    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) return;
   }
+
+  throw new Error("ffmpeg produced no output");
 }
 
 export interface GenerateResult {
@@ -106,8 +107,15 @@ export async function generatePosterFrames(volume?: string): Promise<GenerateRes
       })();
       succeeded++;
     } catch (err) {
-      console.error(`Poster frame failed for ${item.absolute_path}: ${(err as Error).message}`);
-      markError.run(item.id);
+      const errMsg = (err as Error).message;
+      console.error(`Poster frame failed for ${item.absolute_path}: ${errMsg}`);
+      db.transaction(() => {
+        markError.run(item.id);
+        db.prepare("DELETE FROM ai_artifacts WHERE media_item_id = ? AND kind = 'thumbnail_error'").run(item.id);
+        db.prepare("INSERT INTO ai_artifacts (media_item_id, kind, json) VALUES (?, 'thumbnail_error', ?)").run(
+          item.id, JSON.stringify({ error: errMsg, timestamp: new Date().toISOString() })
+        );
+      })();
       failed++;
     }
   });

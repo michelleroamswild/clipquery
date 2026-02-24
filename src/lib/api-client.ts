@@ -251,8 +251,11 @@ export function triggerLlavaAnalysis(volume?: string): Promise<LlavaAnalyzeResul
   return request<LlavaAnalyzeResult>(`/llava/analyze${qs}`, { method: "POST" });
 }
 
-export function fetchLlavaStatus(volume?: string): Promise<LlavaStatus> {
-  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+export function fetchLlavaStatus(volume?: string, type?: string): Promise<LlavaStatus> {
+  const params = new URLSearchParams();
+  if (volume) params.set("volume", volume);
+  if (type) params.set("type", type);
+  const qs = params.toString() ? `?${params}` : "";
   return request<LlavaStatus>(`/llava/status${qs}`);
 }
 
@@ -277,10 +280,11 @@ export interface BackgroundStatus {
   startedAt?: number;
 }
 
-export function startBackgroundAnalysis(volume?: string, limit?: number): Promise<{ started: boolean; message?: string }> {
+export function startBackgroundAnalysis(volume?: string, limit?: number, type?: string): Promise<{ started: boolean; message?: string }> {
   const params = new URLSearchParams();
   if (volume) params.set("volume", volume);
   if (limit != null) params.set("limit", String(limit));
+  if (type) params.set("type", type);
   const qs = params.toString() ? `?${params}` : "";
   return request(`/llava/start${qs}`, { method: "POST" });
 }

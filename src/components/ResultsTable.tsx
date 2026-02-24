@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Brain, Image, MapPin, WifiHigh, WifiSlash } from "@phosphor-icons/react";
+import { ArrowSquareOut, Brain, Image, MapPin, Warning, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import {
   Table,
   TableBody,
@@ -166,16 +166,30 @@ export function ResultsTable(props: ResultsTableProps) {
               )}
             </TableCell>
             <TableCell className="px-2 py-1.5 text-center">
-              {row.mediaItem?.llava_state === "done" && (
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
-                  (row.mediaItem?.llava_version ?? 0) >= 2
-                    ? "bg-emerald-500/15 text-emerald-400"
-                    : "bg-violet-500/15 text-violet-400"
-                }`}>
-                  <Brain className="h-3 w-3 shrink-0" />
-                  {(row.mediaItem?.llava_version ?? 0) >= 2 ? "Analyzed v2" : "Analyzed"}
-                </span>
-              )}
+              <div className="flex flex-col items-center gap-1">
+                {row.mediaItem?.llava_state === "done" && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
+                    (row.mediaItem?.llava_version ?? 0) >= 2
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "bg-violet-500/15 text-violet-400"
+                  }`}>
+                    <Brain className="h-3 w-3 shrink-0" />
+                    {(row.mediaItem?.llava_version ?? 0) >= 2 ? "Analyzed v2" : "Analyzed"}
+                  </span>
+                )}
+                {row.mediaItem?.llava_state === "error" && (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-400">
+                    <Warning className="h-3 w-3 shrink-0" />
+                    Analysis error
+                  </span>
+                )}
+                {row.mediaItem?.type === "video" && row.mediaItem?.ai_state === "error" && (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-400">
+                    <Warning className="h-3 w-3 shrink-0" />
+                    Thumbnail error
+                  </span>
+                )}
+              </div>
             </TableCell>
             <TableCell className="px-2 py-1.5">
               <div className="flex items-center gap-0.5">

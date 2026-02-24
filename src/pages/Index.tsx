@@ -118,12 +118,21 @@ const Index = () => {
   const [ollamaHealthy, setOllamaHealthy] = useState(false);
   const llavaAbortRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Determine media type from file extension filter
+  const VIDEO_EXTS = new Set(["mp4", "mov", "avi", "mkv", "webm", "m4v", "mts", "m2ts"]);
+  const PHOTO_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "heic", "heif", "dng", "arw", "cr2", "cr3", "nef", "orf", "raf", "rw2", "pef", "srw"]);
+  const filteredMediaType = typeFilter !== "all"
+    ? VIDEO_EXTS.has(typeFilter.replace(/^\./, "").toLowerCase()) ? "video"
+      : PHOTO_EXTS.has(typeFilter.replace(/^\./, "").toLowerCase()) ? "photo"
+      : undefined
+    : undefined;
+
   // Check geocode + thumbnail + llava status on mount, after scans, and when volume filter changes
   useEffect(() => {
     fetchGeocodeStatus().then((s) => setGeocodePending(s.pending)).catch(() => {});
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
     fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
-    fetchLlavaStatus(vol).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
+    fetchLlavaStatus(vol, filteredMediaType).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
     fetchOllamaHealth().then((h) => setOllamaHealthy(h.running && h.model_loaded)).catch(() => setOllamaHealthy(false));
     // Resume UI state if background analysis is already running
     fetchBackgroundStatus().then((bg) => {
@@ -152,7 +161,7 @@ const Index = () => {
         llavaAbortRef.current = poll;
       }
     }).catch(() => {});
-  }, [totalCount, volumeFilter]);
+  }, [totalCount, volumeFilter, filteredMediaType]);
 
   const handleGeocode = useCallback(async () => {
     setGeocoding(true);
@@ -208,7 +217,7 @@ const Index = () => {
   // Start background analysis on the server
   const handleLlavaAnalyze = useCallback(async (limit?: number) => {
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
-    const res = await startBackgroundAnalysis(vol, limit);
+    const res = await startBackgroundAnalysis(vol, limit, filteredMediaType);
     if (!res.started) {
       toast({ title: "AI Analysis", description: "Already running", duration: 5000 });
       return;
@@ -238,7 +247,7 @@ const Index = () => {
       }
     }, 3000);
     llavaAbortRef.current = poll;
-  }, [queryClient, volumeFilter]);
+  }, [queryClient, volumeFilter, filteredMediaType]);
 
   // Stop background analysis on the server
   const handleLlavaStop = useCallback(async () => {
@@ -621,7 +630,7 @@ const Index = () => {
                               onClick={() => handleLlavaAnalyze(20)}
                             >
                               <Brain className="mr-1 h-3 w-3" />
-                              AI Analyze ({llavaAnalyzable.toLocaleString()})
+                              AI Analyze{filteredMediaType ? ` ${filteredMediaType}s` : ""} ({llavaAnalyzable.toLocaleString()})
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>

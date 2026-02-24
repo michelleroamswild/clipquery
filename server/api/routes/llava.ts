@@ -28,7 +28,8 @@ router.post("/llava/analyze", async (req, res) => {
 router.post("/llava/start", (req, res) => {
   const volume = req.query.volume as string | undefined;
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
-  const started = startBackgroundAnalysis(volume, limit);
+  const type = req.query.type as string | undefined;
+  const started = startBackgroundAnalysis(volume, limit, type);
   if (!started) {
     res.json({ started: false, message: "Already running" });
   } else {
@@ -50,7 +51,8 @@ router.get("/llava/background", (_req, res) => {
 /** GET /api/llava/status — Counts by llava_state */
 router.get("/llava/status", (req, res) => {
   const volume = req.query.volume as string | undefined;
-  res.json(llavaStatus(volume));
+  const type = req.query.type as string | undefined;
+  res.json(llavaStatus(volume, type));
 });
 
 /** POST /api/llava/reanalyze/:id — Re-analyze a single item */
