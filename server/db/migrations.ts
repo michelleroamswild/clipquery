@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 6;
+const CURRENT_VERSION = 7;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -79,6 +79,26 @@ export function runMigrations(db?: Database.Database): void {
       // Mark existing analyzed items as v1
       conn.exec(
         `UPDATE media_items SET llava_version = 1 WHERE llava_state = 'done'`
+      );
+    }
+  }
+
+  if (currentVersion < 7) {
+    // v6 → v7: Add storage helper columns
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("phash")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN phash TEXT;");
+    }
+    if (!colNames.has("blur_score")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN blur_score REAL;");
+    }
+    if (!colNames.has("duration_sec")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN duration_sec REAL;");
+    }
+    if (!colNames.has("storage_scan_state")) {
+      conn.exec(
+        `ALTER TABLE media_items ADD COLUMN storage_scan_state TEXT NOT NULL DEFAULT 'not_started'`
       );
     }
   }

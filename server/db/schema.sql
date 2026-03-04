@@ -1,4 +1,4 @@
--- clipquery schema v6
+-- clipquery schema v7
 
 CREATE TABLE IF NOT EXISTS media_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS media_items (
   ai_state      TEXT NOT NULL DEFAULT 'not_started' CHECK (ai_state IN ('not_started', 'queued', 'done', 'error')),
   llava_state   TEXT NOT NULL DEFAULT 'not_started' CHECK (llava_state IN ('not_started', 'queued', 'done', 'error')),
   llava_version INTEGER NOT NULL DEFAULT 0,
+  phash         TEXT,
+  blur_score    REAL,
+  duration_sec  REAL,
+  storage_scan_state TEXT NOT NULL DEFAULT 'not_started' CHECK (storage_scan_state IN ('not_started', 'queued', 'done', 'error')),
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -51,6 +55,8 @@ CREATE INDEX IF NOT EXISTS idx_media_type ON media_items(type);
 CREATE INDEX IF NOT EXISTS idx_media_availability ON media_items(availability);
 CREATE INDEX IF NOT EXISTS idx_media_index_state ON media_items(index_state);
 CREATE INDEX IF NOT EXISTS idx_media_llava_state ON media_items(llava_state);
+CREATE INDEX IF NOT EXISTS idx_media_phash ON media_items(phash);
+CREATE INDEX IF NOT EXISTS idx_media_storage_scan ON media_items(storage_scan_state);
 CREATE INDEX IF NOT EXISTS idx_ai_artifacts_media ON ai_artifacts(media_item_id);
 
 -- Auto-update updated_at

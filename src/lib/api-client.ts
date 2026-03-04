@@ -386,6 +386,87 @@ export function updateFolderLocation(
   });
 }
 
+// --- Storage Helper ---
+
+export interface StorageScanStatus {
+  running: boolean;
+  processed: number;
+  total: number;
+  remaining: number;
+  startedAt?: number;
+}
+
+export interface StorageMediaItem {
+  id: number;
+  filename: string;
+  absolute_path: string;
+  type: string;
+  file_ext: string;
+  size_bytes: number;
+  ai_state: string;
+  volume_name: string | null;
+  mtime_ms: number;
+  availability: string;
+  llava_state: string;
+  llava_version: number;
+  latitude: number | null;
+  longitude: number | null;
+  location_name: string | null;
+  duration_sec?: number;
+  blur_score?: number;
+  phash?: string;
+}
+
+export function startStorageScan(): Promise<{ started: boolean; message?: string }> {
+  return request("/storage/scan/start", { method: "POST" });
+}
+
+export function stopStorageScan(): Promise<StorageScanStatus & { stopped: boolean }> {
+  return request("/storage/scan/stop", { method: "POST" });
+}
+
+export function fetchStorageScanStatus(): Promise<StorageScanStatus> {
+  return request<StorageScanStatus>("/storage/scan/status");
+}
+
+export interface StorageFilters {
+  volume?: string;
+  type?: string;
+  file_ext?: string;
+}
+
+function storageQs(base: Record<string, string | number>, filters?: StorageFilters): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(base)) qs.set(k, String(v));
+  if (filters?.volume) qs.set("volume", filters.volume);
+  if (filters?.type) qs.set("type", filters.type);
+  if (filters?.file_ext) qs.set("file_ext", filters.file_ext);
+  return qs.toString();
+}
+
+export function fetchDuplicates(threshold = 10, filters?: StorageFilters): Promise<{ groups: StorageMediaItem[][] }> {
+  return request(`/storage/duplicates?${storageQs({ threshold }, filters)}`);
+}
+
+export function fetchShortVideos(maxDuration = 1.5, filters?: StorageFilters): Promise<{ items: StorageMediaItem[] }> {
+  return request(`/storage/short-videos?${storageQs({ max_duration: maxDuration }, filters)}`);
+}
+
+export function fetchBlurry(maxBlur = 100, filters?: StorageFilters): Promise<{ items: StorageMediaItem[] }> {
+  return request(`/storage/blurry?${storageQs({ max_blur: maxBlur }, filters)}`);
+}
+
+export function fetchLargeFiles(minSize = 500_000_000, limit = 50, filters?: StorageFilters): Promise<{ items: StorageMediaItem[] }> {
+  return request(`/storage/large?${storageQs({ min_size: minSize, limit }, filters)}`);
+}
+
+export function deleteStorageFiles(ids: number[]): Promise<{ trashed: number; errors: number; freedBytes: number }> {
+  return request("/storage/files", {
+    method: "DELETE",
+    body: JSON.stringify({ ids }),
+  });
+}
+
 // --- EXIF ---
 
 export interface ExifData {
