@@ -37,6 +37,11 @@ export interface MediaItemRow {
   ai_state: "not_started" | "queued" | "done" | "error";
   llava_state: "not_started" | "queued" | "done" | "error";
   llava_version: number;
+  rating: number;
+  marked_for_delete: number;
+  duration_sec: number | null;
+  width: number | null;
+  height: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,9 +89,13 @@ export interface MediaListParams {
   volume?: string;
   file_ext?: string;
   has_gps?: string;
+  min_rating?: string;
+  tag?: string;
   llava_state?: string;
   llava_version?: string;
   mtime_since?: string;
+  orientation?: string;
+  marked_for_delete?: string;
   sort?: string;
   order?: "asc" | "desc";
   limit?: number;
@@ -206,6 +215,11 @@ export function triggerThumbnailGeneration(volume?: string): Promise<ThumbnailGe
 export function fetchThumbnailStatus(volume?: string): Promise<ThumbnailStatus> {
   const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
   return request<ThumbnailStatus>(`/thumbnails/status${qs}`);
+}
+
+/** Build stream URL for playing/viewing original media file */
+export function streamUrl(id: number): string {
+  return `${BASE}/media/${id}/stream`;
 }
 
 /** Build thumbnail URL for a media item, or null if not available */
@@ -506,8 +520,170 @@ export interface SearchResponse {
 export function searchMedia(
   q: string,
   limit = 50,
-  offset = 0
+  offset = 0,
+  minDuration?: number,
+  operator?: "and" | "or"
 ): Promise<SearchResponse> {
   const qs = new URLSearchParams({ q, limit: String(limit), offset: String(offset) });
+  if (minDuration != null) qs.set("min_duration", String(minDuration));
+  if (operator) qs.set("operator", operator);
   return request<SearchResponse>(`/search?${qs}`);
+}
+
+// --- Rating ---
+
+export function setMarkedForDelete(id: number, marked: boolean): Promise<{ marked: boolean }> {
+  return request(`/media/${id}/mark-delete`, {
+    method: "POST",
+    body: JSON.stringify({ marked }),
+  });
+}
+
+export function setRating(id: number, rating: number): Promise<{ rating: number }> {
+  return request(`/media/${id}/rating`, {
+    method: "POST",
+    body: JSON.stringify({ rating }),
+  });
+}
+
+// --- Tags ---
+
+export interface Tag {
+  id: number;
+  name: string;
+  color: string | null;
+  count?: number;
+}
+
+export interface TagsResponse {
+  tags: Tag[];
+}
+
+export function fetchTags(): Promise<TagsResponse> {
+  return request<TagsResponse>("/tags");
+}
+
+export function createTag(name: string, color?: string): Promise<Tag> {
+  return request<Tag>("/tags", {
+    method: "POST",
+    body: JSON.stringify({ name, color }),
+  });
+}
+
+export function deleteTag(id: number): Promise<{ ok: boolean }> {
+  return request(`/tags/${id}`, { method: "DELETE" });
+}
+
+export function fetchItemTags(mediaId: number): Promise<TagsResponse> {
+  return request<TagsResponse>(`/media/${mediaId}/tags`);
+}
+
+export function addItemTag(
+  mediaId: number,
+  tag: { tagId?: number; name?: string; color?: string }
+): Promise<TagsResponse> {
+  return request<TagsResponse>(`/media/${mediaId}/tags`, {
+    method: "POST",
+    body: JSON.stringify(tag),
+  });
+}
+
+export function removeItemTag(mediaId: number, tagId: number): Promise<{ ok: boolean }> {
+  return request(`/media/${mediaId}/tags/${tagId}`, { method: "DELETE" });
+}
+
+export function bulkAddTag(
+  tagId: number,
+  mediaIds: number[]
+): Promise<{ ok: boolean; count: number }> {
+  return request("/tags/bulk", {
+    method: "POST",
+    body: JSON.stringify({ tagId, mediaIds }),
+  });
+}
+
+// --- Collections ---
+
+export interface Collection {
+  id: number;
+  name: string;
+  description: string | null;
+  itemCount: number;
+  coverIds: number[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionsResponse {
+  collections: Collection[];
+}
+
+export interface CollectionDetail {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  items: (MediaItemRow & { position: number; collection_added_at: string })[];
+}
+
+export function fetchCollections(): Promise<CollectionsResponse> {
+  return request<CollectionsResponse>("/collections");
+}
+
+export function createCollection(
+  name: string,
+  description?: string
+): Promise<Collection> {
+  return request<Collection>("/collections", {
+    method: "POST",
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+export function updateCollection(
+  id: number,
+  data: { name?: string; description?: string }
+): Promise<Collection> {
+  return request<Collection>(`/collections/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteCollection(id: number): Promise<{ ok: boolean }> {
+  return request(`/collections/${id}`, { method: "DELETE" });
+}
+
+export function fetchCollectionDetail(id: number): Promise<CollectionDetail> {
+  return request<CollectionDetail>(`/collections/${id}`);
+}
+
+export function addToCollection(
+  collectionId: number,
+  mediaIds: number[]
+): Promise<{ ok: boolean }> {
+  return request(`/collections/${collectionId}/items`, {
+    method: "POST",
+    body: JSON.stringify({ mediaIds }),
+  });
+}
+
+export function removeFromCollection(
+  collectionId: number,
+  mediaId: number
+): Promise<{ ok: boolean }> {
+  return request(`/collections/${collectionId}/items/${mediaId}`, {
+    method: "DELETE",
+  });
+}
+
+export function reorderCollectionItems(
+  collectionId: number,
+  orderedIds: number[]
+): Promise<{ ok: boolean }> {
+  return request(`/collections/${collectionId}/items/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify({ orderedIds }),
+  });
 }

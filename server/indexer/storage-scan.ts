@@ -1,4 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, execFile as execFileCb } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFileCb);
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,6 +104,32 @@ function getPhash(imagePath: string): string | null {
   }
 }
 
+/** Get width and height of a media file via ffprobe (async to avoid blocking event loop) */
+async function getDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "ffprobe",
+      [
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "csv=p=0",
+        filePath,
+      ],
+      { timeout: 15_000 }
+    );
+    const parts = stdout.toString().trim().split(",");
+    const width = parseInt(parts[0]);
+    const height = parseInt(parts[1]);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve thumbnail/poster path for a media item */
 function getThumbnailPath(item: ScanRow): string | null {
   if (item.type === "video") {
@@ -161,7 +190,7 @@ async function scanBatch(): Promise<{ processed: number; remaining: number }> {
 
   const markDone = db.prepare(
     `UPDATE media_items SET storage_scan_state = 'done',
-       phash = ?, blur_score = ?, duration_sec = ?
+       phash = ?, blur_score = ?, duration_sec = ?, width = ?, height = ?
      WHERE id = ?`
   );
   const markError = db.prepare(
@@ -173,10 +202,21 @@ async function scanBatch(): Promise<{ processed: number; remaining: number }> {
       let duration: number | null = null;
       let blur: number | null = null;
       let phash: string | null = null;
+      let width: number | null = null;
+      let height: number | null = null;
 
       // Duration: videos only, from original file
       if (item.type === "video" && fs.existsSync(item.absolute_path)) {
         duration = getDuration(item.absolute_path);
+      }
+
+      // Dimensions: from original file via ffprobe (async)
+      if (fs.existsSync(item.absolute_path)) {
+        const dims = await getDimensions(item.absolute_path);
+        if (dims) {
+          width = dims.width;
+          height = dims.height;
+        }
       }
 
       // Blur + phash: from thumbnail
@@ -186,7 +226,7 @@ async function scanBatch(): Promise<{ processed: number; remaining: number }> {
         phash = getPhash(thumbPath);
       }
 
-      markDone.run(phash, blur, duration, item.id);
+      markDone.run(phash, blur, duration, width, height, item.id);
     } catch (err) {
       console.error(`Storage scan failed for ${item.absolute_path}: ${(err as Error).message}`);
       markError.run(item.id);

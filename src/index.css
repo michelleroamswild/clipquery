@@ -2,10 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark-first "creator tool" palette — neutral charcoal tones */
+/* "Creator tool" palette — neutral charcoal tones (dark) and soft paper (light) */
 
 @layer base {
   :root {
+    --background: 220 20% 98%;
+    --foreground: 220 20% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 8%;
+
+    --primary: 220 65% 45%;
+    --primary-foreground: 220 10% 98%;
+
+    --secondary: 220 14% 88%;
+    --secondary-foreground: 220 20% 12%;
+
+    --muted: 220 14% 90%;
+    --muted-foreground: 220 14% 32%;
+
+    --accent: 220 14% 86%;
+    --accent-foreground: 220 20% 10%;
+
+    --destructive: 0 75% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 15% 75%;
+    --input: 220 15% 72%;
+    --ring: 220 65% 45%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 20% 94%;
+    --sidebar-foreground: 220 15% 25%;
+    --sidebar-primary: 220 65% 45%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 220 14% 86%;
+    --sidebar-accent-foreground: 220 20% 10%;
+    --sidebar-border: 220 15% 75%;
+    --sidebar-ring: 220 65% 45%;
+  }
+
+  .dark {
     --background: 220 14% 10%;
     --foreground: 220 10% 90%;
 
@@ -33,8 +74,6 @@
     --border: 220 10% 20%;
     --input: 220 10% 20%;
     --ring: 220 60% 55%;
-
-    --radius: 0.5rem;
 
     --sidebar-background: 220 14% 8%;
     --sidebar-foreground: 220 8% 75%;

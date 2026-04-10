@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
-import { ArrowSquareOut, ArrowsClockwise, CaretLeft, CaretRight, FilmStrip, Image, MapPin, Brain, Camera, X } from "@phosphor-icons/react";
+import { ArrowSquareOut, ArrowsClockwise, CaretLeft, CaretRight, FilmStrip, Image, MapPin, Brain, Camera, X, Star, Plus, Tag, Folder, Trash } from "@phosphor-icons/react";
 import {
   Sheet,
   SheetContent,
   SheetClose,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { thumbnailUrl, openInFinder, generateSingleThumbnail, fetchMediaItem, fetchExifData, reanalyzeSingle } from "@/lib/api-client";
+import { thumbnailUrl, streamUrl, openInFinder, generateSingleThumbnail, fetchMediaItem, fetchExifData, reanalyzeSingle } from "@/lib/api-client";
 import { formatFileSize } from "@/lib/mock-data";
+import { useSetRating } from "@/hooks/use-rating";
+import { useSetMarkedForDelete } from "@/hooks/use-mark-delete";
+import { useItemTags, useTags, useAddItemTag, useRemoveItemTag } from "@/hooks/use-tags";
+import { useCollections, useAddToCollection } from "@/hooks/use-collections";
 import type { MediaItemRow, ExifData } from "@/lib/api-client";
 
 interface MediaDetailSheetProps {
@@ -28,6 +34,7 @@ function formatCoords(lat: number, lng: number): string {
 export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: MediaDetailSheetProps) {
   const [generating, setGenerating] = useState(false);
   const [generatedThumbUrl, setGeneratedThumbUrl] = useState<string | null>(null);
+  const [thumbBroken, setThumbBroken] = useState(false);
   const [lastItemId, setLastItemId] = useState<number | null>(null);
   const [llavaDescription, setLlavaDescription] = useState<string | null>(null);
   const [llavaTags, setLlavaTags] = useState<string[]>([]);
@@ -36,12 +43,25 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
   const [reanalyzing, setReanalyzing] = useState(false);
   const [exifData, setExifData] = useState<ExifData | null>(null);
   const [errors, setErrors] = useState<{ kind: string; error: string; timestamp: string }[]>([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
+  const [collectionPopoverOpen, setCollectionPopoverOpen] = useState(false);
+
+  const setRatingMut = useSetRating();
+  const setMarkedMut = useSetMarkedForDelete();
+  const itemTags = useItemTags(item?.id);
+  const allTags = useTags();
+  const addItemTag = useAddItemTag();
+  const removeItemTag = useRemoveItemTag();
+  const collections = useCollections();
+  const addToCollection = useAddToCollection();
 
   // Reset generated URL and LLaVA data when switching items
   if (item && item.id !== lastItemId) {
     setLastItemId(item.id);
     setGeneratedThumbUrl(null);
     setGenerating(false);
+    setThumbBroken(false);
     setLlavaDescription(null);
     setLlavaTags([]);
     setLlavaColors([]);
@@ -87,16 +107,44 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
       .catch(() => {});
   }, [item?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Navigation (computed before early return so hooks can reference them)
+  const currentIndex = items?.findIndex((i) => i.id === item?.id) ?? -1;
+  const hasPrev = currentIndex > 0;
+  const hasNext = items != null && currentIndex >= 0 && currentIndex < items.length - 1;
+
+  // Keyboard shortcuts: arrow keys for navigation, 1-5 for rating
+  useEffect(() => {
+    if (!open || !item) return;
+    const handler = (e: KeyboardEvent) => {
+      // Skip if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (hasPrev && items && onNavigate) onNavigate(items[currentIndex - 1]);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (hasNext && items && onNavigate) onNavigate(items[currentIndex + 1]);
+      } else if (e.key === "d" || e.key === "D") {
+        e.preventDefault();
+        setMarkedMut.mutate({ id: item.id, marked: item.marked_for_delete !== 1 });
+      } else if (e.key >= "1" && e.key <= "5") {
+        e.preventDefault();
+        const rating = parseInt(e.key, 10);
+        setRatingMut.mutate({ id: item.id, rating: item.rating === rating ? 0 : rating });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, item, hasPrev, hasNext, currentIndex, items, onNavigate, setRatingMut, setMarkedMut]);
+
   if (!item) return null;
 
   const thumbUrl = generatedThumbUrl ?? thumbnailUrl(item);
   const ext = item.file_ext.replace(/^\./, "").toLowerCase();
   const canGenerate = item.type === "video" && item.ai_state !== "done" && !generatedThumbUrl;
 
-  // Navigation
-  const currentIndex = items?.findIndex((i) => i.id === item.id) ?? -1;
-  const hasPrev = currentIndex > 0;
-  const hasNext = items != null && currentIndex >= 0 && currentIndex < items.length - 1;
   const goPrev = () => {
     if (hasPrev && items && onNavigate) onNavigate(items[currentIndex - 1]);
   };
@@ -170,6 +218,35 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
               .{ext}
             </span>
           </div>
+          <button
+            className="p-0 shrink-0"
+            title={item.marked_for_delete === 1 ? "Unmark for delete (D)" : "Mark for delete (D)"}
+            onClick={() => setMarkedMut.mutate({ id: item.id, marked: item.marked_for_delete !== 1 })}
+          >
+            <Trash
+              className={`h-4 w-4 ${item.marked_for_delete === 1 ? "text-red-500" : "text-muted-foreground"}`}
+              weight={item.marked_for_delete === 1 ? "fill" : "regular"}
+            />
+          </button>
+          <div className="flex items-center gap-0.5 shrink-0">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <button
+                key={i}
+                className="p-0"
+                onClick={() =>
+                  setRatingMut.mutate({
+                    id: item.id,
+                    rating: item.rating === i ? 0 : i,
+                  })
+                }
+              >
+                <Star
+                  className={`h-4 w-4 ${i <= item.rating ? "text-amber-400" : "text-muted-foreground"}`}
+                  weight={i <= item.rating ? "fill" : "regular"}
+                />
+              </button>
+            ))}
+          </div>
           <SheetClose className="rounded-sm opacity-70 hover:opacity-100 transition-opacity shrink-0">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
@@ -178,16 +255,26 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
-          {/* Thumbnail */}
-          {thumbUrl ? (
+          {/* Preview: video player or thumbnail image */}
+          {item.type === "video" && item.availability === "online" ? (
+            <video
+              key={item.id}
+              src={streamUrl(item.id)}
+              poster={thumbUrl ?? undefined}
+              controls
+              preload="metadata"
+              className="w-full max-h-[400px] bg-black"
+            />
+          ) : thumbUrl && !thumbBroken ? (
             <img
               src={thumbUrl}
               alt={item.filename}
+              onError={() => setThumbBroken(true)}
               className="w-full max-h-[400px] object-contain bg-black"
             />
           ) : (
             <div className="w-full h-[300px] bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
-              <Image className="h-8 w-8" />
+              {item.type === "video" ? <FilmStrip className="h-8 w-8" /> : <Image className="h-8 w-8" />}
               {canGenerate ? (
                 <Button
                   variant="outline"
@@ -235,6 +322,138 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
           )}
 
           <div className="p-6 space-y-5">
+
+            {/* Tags section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Tag className="h-3 w-3" />
+                Tags
+              </div>
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {(itemTags.data ?? []).map((t) => (
+                  <span
+                    key={t.id}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                    style={{
+                      backgroundColor: t.color ? `${t.color}20` : undefined,
+                      color: t.color || undefined,
+                    }}
+                  >
+                    {!t.color && <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />}
+                    {t.name}
+                    <button
+                      className="ml-0.5 opacity-60 hover:opacity-100"
+                      onClick={() => removeItemTag.mutate({ mediaId: item.id, tagId: t.id })}
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                ))}
+                <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-full">
+                      <Plus className="h-3 w-3 mr-0.5" />
+                      Add tag
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-52 p-2" align="start">
+                    <div className="space-y-1">
+                      {(allTags.data ?? []).map((t) => (
+                        <button
+                          key={t.id}
+                          className="w-full text-left text-xs px-2 py-1 rounded hover:bg-muted flex items-center gap-2"
+                          onClick={() => {
+                            addItemTag.mutate({ mediaId: item.id, tag: { tagId: t.id } });
+                            setTagPopoverOpen(false);
+                          }}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: t.color || "#888" }}
+                          />
+                          {t.name}
+                        </button>
+                      ))}
+                      <div className="border-t border-border pt-1 mt-1">
+                        <form
+                          className="flex gap-1"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (newTagName.trim()) {
+                              addItemTag.mutate({
+                                mediaId: item.id,
+                                tag: { name: newTagName.trim() },
+                              });
+                              setNewTagName("");
+                              setTagPopoverOpen(false);
+                            }
+                          }}
+                        >
+                          <Input
+                            value={newTagName}
+                            onChange={(e) => setNewTagName(e.target.value)}
+                            placeholder="New tag..."
+                            className="h-6 text-xs"
+                          />
+                          <Button type="submit" size="sm" className="h-6 px-2 text-[11px]">
+                            Add
+                          </Button>
+                        </form>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Collections section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Folder className="h-3 w-3" />
+                Collections
+              </div>
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {(collections.data ?? [])
+                  .filter((c) => c.coverIds?.includes(item.id) || false)
+                  .map((c) => (
+                    <span
+                      key={c.id}
+                      className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs"
+                    >
+                      {c.name}
+                    </span>
+                  ))}
+                <Popover open={collectionPopoverOpen} onOpenChange={setCollectionPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-full">
+                      <Plus className="h-3 w-3 mr-0.5" />
+                      Add to collection
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-52 p-2" align="start">
+                    <div className="space-y-1">
+                      {(collections.data ?? []).map((c) => (
+                        <button
+                          key={c.id}
+                          className="w-full text-left text-xs px-2 py-1 rounded hover:bg-muted"
+                          onClick={() => {
+                            addToCollection.mutate({ collectionId: c.id, mediaIds: [item.id] });
+                            setCollectionPopoverOpen(false);
+                            toast({ title: "Added", description: `Added to "${c.name}"`, duration: 3000 });
+                          }}
+                        >
+                          {c.name}
+                          <span className="text-muted-foreground ml-1">({c.itemCount})</span>
+                        </button>
+                      ))}
+                      {(collections.data ?? []).length === 0 && (
+                        <p className="text-xs text-muted-foreground px-2 py-1">No collections yet</p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
 
             {/* Metadata grid */}
             <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

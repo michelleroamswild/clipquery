@@ -13,6 +13,8 @@ import searchRoutes from "./routes/search.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import folderRoutes from "./routes/folders.js";
 import storageRoutes from "./routes/storage.js";
+import tagRoutes from "./routes/tags.js";
+import collectionRoutes from "./routes/collections.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001");
@@ -39,6 +41,8 @@ app.use("/api", llavaRoutes);
 app.use("/api", searchRoutes);
 app.use("/api", folderRoutes);
 app.use("/api", storageRoutes);
+app.use("/api", tagRoutes);
+app.use("/api", collectionRoutes);
 
 app.listen(PORT, () => {
   console.log(`clipquery API server running on http://localhost:${PORT}`);

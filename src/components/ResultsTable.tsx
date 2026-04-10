@@ -1,4 +1,5 @@
-import { ArrowSquareOut, Brain, Image, MapPin, Warning, WifiHigh, WifiSlash } from "@phosphor-icons/react";
+import { useState } from "react";
+import { ArrowSquareOut, Brain, Star, Image, FilmStrip, MapPin, Plus, Warning, WifiHigh, WifiSlash, Trash } from "@phosphor-icons/react";
 import {
   Table,
   TableBody,
@@ -8,22 +9,37 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
 import { openInFinder, thumbnailUrl } from "@/lib/api-client";
 import { formatFileSize } from "@/lib/mock-data";
-import type { MediaItemRow } from "@/lib/api-client";
+import { useSetRating } from "@/hooks/use-rating";
+import { useCollections, useAddToCollection } from "@/hooks/use-collections";
+import type { MediaItemRow, Collection } from "@/lib/api-client";
 import type { SearchResult } from "@/types/video";
 
 interface SearchTableProps {
   mode: "search";
   results: SearchResult[];
   onRowClick?: (item: MediaItemRow) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
 interface BrowseTableProps {
   mode: "browse";
   items: MediaItemRow[];
   onRowClick?: (item: MediaItemRow) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
 type ResultsTableProps = SearchTableProps | BrowseTableProps;
@@ -36,6 +52,11 @@ function formatCoords(lat: number, lng: number): string {
 
 export function ResultsTable(props: ResultsTableProps) {
   const isSearch = props.mode === "search";
+  const { selectable, selectedIds, onSelectionChange } = props;
+  const setRatingMut = useSetRating();
+  const collectionsQuery = useCollections();
+  const addToCollection = useAddToCollection();
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
 
   const handleOpenInFinder = async (path: string) => {
     try {
@@ -80,6 +101,21 @@ export function ResultsTable(props: ResultsTableProps) {
     <Table>
       <TableHeader>
         <TableRow>
+          {selectable && (
+            <TableHead className="h-8 px-2 text-xs w-[36px]">
+              <Checkbox
+                checked={rows.length > 0 && selectedIds?.size === rows.length}
+                onCheckedChange={(checked) => {
+                  if (!onSelectionChange) return;
+                  if (checked) {
+                    onSelectionChange(new Set(rows.map((r) => r.mediaItem?.id).filter(Boolean) as number[]));
+                  } else {
+                    onSelectionChange(new Set());
+                  }
+                }}
+              />
+            </TableHead>
+          )}
           <TableHead className="h-8 px-2 text-xs w-[48px]" />
           <TableHead className="h-8 px-2 text-xs">Filename</TableHead>
           {isSearch && <TableHead className="h-8 px-2 text-xs w-[60px]">Score</TableHead>}
@@ -90,6 +126,7 @@ export function ResultsTable(props: ResultsTableProps) {
           <TableHead className="h-8 px-2 text-xs w-[260px]">Location</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[70px]">Status</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[110px] text-center">AI</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[80px]" />
           <TableHead className="h-8 px-2 text-xs w-[70px]" />
         </TableRow>
       </TableHeader>
@@ -100,17 +137,42 @@ export function ResultsTable(props: ResultsTableProps) {
             className={row.mediaItem && props.onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
             onClick={() => row.mediaItem && props.onRowClick?.(row.mediaItem)}
           >
+            {selectable && (
+              <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={selectedIds?.has(row.mediaItem?.id ?? 0) ?? false}
+                  onCheckedChange={(checked) => {
+                    if (!onSelectionChange || !row.mediaItem) return;
+                    const next = new Set(selectedIds);
+                    if (checked) next.add(row.mediaItem.id);
+                    else next.delete(row.mediaItem.id);
+                    onSelectionChange(next);
+                  }}
+                />
+              </TableCell>
+            )}
             <TableCell className="px-2 py-1.5">
-              {row.thumbUrl ? (
+              {row.thumbUrl && !brokenThumbs.has(row.key) ? (
                 <img
                   src={row.thumbUrl}
                   alt=""
                   loading="lazy"
+                  onError={() =>
+                    setBrokenThumbs((prev) => {
+                      const next = new Set(prev);
+                      next.add(row.key);
+                      return next;
+                    })
+                  }
                   className="w-10 h-7 object-cover rounded-sm"
                 />
               ) : (
                 <div className="w-10 h-7 rounded-sm bg-muted flex items-center justify-center">
-                  <Image className="h-3.5 w-3.5 text-muted-foreground" />
+                  {row.mediaItem?.type === "video" ? (
+                    <FilmStrip className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <Image className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
                 </div>
               )}
             </TableCell>
@@ -118,11 +180,24 @@ export function ResultsTable(props: ResultsTableProps) {
               className="px-2 py-1.5 text-xs truncate max-w-[300px]"
               title={row.fullPath}
             >
-              {row.filename}
+              <span className="flex items-center gap-1">
+                {row.mediaItem?.marked_for_delete === 1 && (
+                  <Trash className="h-3 w-3 text-red-500 shrink-0" weight="fill" />
+                )}
+                {row.filename}
+              </span>
             </TableCell>
             {isSearch && (
-              <TableCell className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                {row.score != null ? Math.abs(Math.round(row.score * 10) / 10) : "—"}
+              <TableCell className="px-2 py-1.5 text-xs font-medium">
+                {row.score != null ? (
+                  row.score <= 1 ? (
+                    <span className={`${row.score >= 0.5 ? "text-emerald-400" : row.score >= 0.25 ? "text-amber-400" : "text-muted-foreground"}`}>
+                      {Math.round(row.score * 100)}%
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">{Math.abs(Math.round(row.score * 10) / 10)}</span>
+                  )
+                ) : "—"}
               </TableCell>
             )}
             <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px]" title={row.mediaItem?.volume_name ?? ""}>
@@ -191,8 +266,55 @@ export function ResultsTable(props: ResultsTableProps) {
                 )}
               </div>
             </TableCell>
+            <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-0">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <button
+                    key={i}
+                    className="p-0"
+                    onClick={() =>
+                      row.mediaItem &&
+                      setRatingMut.mutate({
+                        id: row.mediaItem.id,
+                        rating: row.mediaItem.rating === i ? 0 : i,
+                      })
+                    }
+                  >
+                    <Star
+                      className={`h-3 w-3 ${i <= (row.mediaItem?.rating ?? 0) ? "text-amber-400" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
+                      weight={i <= (row.mediaItem?.rating ?? 0) ? "fill" : "regular"}
+                    />
+                  </button>
+                ))}
+              </div>
+            </TableCell>
             <TableCell className="px-2 py-1.5">
               <div className="flex items-center gap-0.5">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {(collectionsQuery.data ?? []).map((c: Collection) => (
+                      <DropdownMenuItem
+                        key={c.id}
+                        onClick={() => {
+                          if (row.mediaItem) {
+                            addToCollection.mutate({ collectionId: c.id, mediaIds: [row.mediaItem.id] });
+                            toast({ title: "Added", description: `Added to "${c.name}"`, duration: 3000 });
+                          }
+                        }}
+                      >
+                        {c.name} ({c.itemCount})
+                      </DropdownMenuItem>
+                    ))}
+                    {(collectionsQuery.data ?? []).length === 0 && (
+                      <DropdownMenuItem disabled>No collections</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   variant="ghost"
                   size="sm"

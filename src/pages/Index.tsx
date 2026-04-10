@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { MagnifyingGlass, Faders, MapPin, FilmStrip, CaretDown, Brain, Stop, X } from "@phosphor-icons/react";
+import { MagnifyingGlass, MapPin, FilmStrip, CaretDown, Brain, Stop, X, Star, Tag, Folder, CheckSquare, Trash } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
@@ -24,11 +29,13 @@ import { VideoSearchSidebar } from "@/components/VideoSearchSidebar";
 import { ResultsTable } from "@/components/ResultsTable";
 import { MediaDetailSheet } from "@/components/MediaDetailSheet";
 import { mockSearch } from "@/lib/mock-data";
-import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, fetchLlavaStatus, fetchOllamaHealth, searchMedia, startBackgroundAnalysis, stopBackgroundAnalysis, fetchBackgroundStatus } from "@/lib/api-client";
+import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, fetchLlavaStatus, fetchOllamaHealth, searchMedia, startBackgroundAnalysis, stopBackgroundAnalysis, fetchBackgroundStatus, setRating, bulkAddTag, setMarkedForDelete } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 import { useMediaList, useMediaStats, useMediaExtensions } from "@/hooks/use-media";
 import { useQueryClient } from "@tanstack/react-query";
 import { useScanDirectory } from "@/hooks/use-scan";
+import { useTags } from "@/hooks/use-tags";
+import { useCollections, useAddToCollection } from "@/hooks/use-collections";
 import { mediaRowToVideoFile } from "@/types/video";
 import type { MediaItemRow } from "@/lib/api-client";
 import type { VideoFile, SearchResult, SortOption } from "@/types/video";
@@ -67,6 +74,15 @@ const Index = () => {
   const [locationFilter, setLocationFilter] = useState("all");
   const [volumeFilter, setVolumeFilter] = useState("all");
   const [aiFilter, setAiFilter] = useState("all");
+  const [minRatingFilter, setMinRatingFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [orientationFilter, setOrientationFilter] = useState("all");
+  const [markedFilter, setMarkedFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const tagsQuery = useTags();
+  const collectionsQuery = useCollections();
+  const addToCollectionMut = useAddToCollection();
 
   // Browse-mode sort & pagination (server-side)
   const [browseSort, setBrowseSort] = useState("mtime_ms");
@@ -97,6 +113,10 @@ const Index = () => {
     llava_state: aiFilter === "v1" || aiFilter === "v2" ? "done" : aiFilter !== "all" ? aiFilter : undefined,
     llava_version: aiFilter === "v1" ? "1" : aiFilter === "v2" ? "2" : undefined,
     mtime_since: mtimeSince,
+    min_rating: minRatingFilter !== "all" ? minRatingFilter : undefined,
+    tag: tagFilter !== "all" ? tagFilter : undefined,
+    orientation: orientationFilter !== "all" ? orientationFilter : undefined,
+    marked_for_delete: markedFilter === "true" ? "true" : markedFilter === "false" ? "false" : undefined,
     sort: browseSort,
     order: browseOrder,
   });
@@ -411,7 +431,6 @@ const Index = () => {
             {/* Controls row */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
-                <Faders className="h-4 w-4 text-muted-foreground" />
                 {hasSearched ? (
                   <Select
                     value={sortBy}
@@ -527,7 +546,58 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
-                {(dateFilter !== "all" || typeFilter !== "all" || volumeFilter !== "all" || locationFilter !== "all" || aiFilter !== "all" || availabilityFilter != null) && (
+                <Select value={minRatingFilter} onValueChange={(v) => { setMinRatingFilter(v); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-36 text-xs">
+                    <SelectValue placeholder="Min Rating" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any rating</SelectItem>
+                    <SelectItem value="1">1+ stars</SelectItem>
+                    <SelectItem value="2">2+ stars</SelectItem>
+                    <SelectItem value="3">3+ stars</SelectItem>
+                    <SelectItem value="4">4+ stars</SelectItem>
+                    <SelectItem value="5">5 stars</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={tagFilter} onValueChange={(v) => { setTagFilter(v); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-36 text-xs">
+                    <SelectValue placeholder="Tag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All tags</SelectItem>
+                    {(tagsQuery.data ?? []).map((t) => (
+                      <SelectItem key={t.id} value={t.name}>
+                        {t.name} ({t.count ?? 0})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={orientationFilter} onValueChange={(v) => { setOrientationFilter(v); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-36 text-xs">
+                    <SelectValue placeholder="Orientation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any orientation</SelectItem>
+                    <SelectItem value="landscape">Landscape</SelectItem>
+                    <SelectItem value="portrait">Portrait</SelectItem>
+                    <SelectItem value="square">Square</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={markedFilter} onValueChange={(v) => { setMarkedFilter(v); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-40 text-xs">
+                    <SelectValue placeholder="Delete flag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All items</SelectItem>
+                    <SelectItem value="true">Marked for delete</SelectItem>
+                    <SelectItem value="false">Not marked</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {(dateFilter !== "all" || typeFilter !== "all" || volumeFilter !== "all" || locationFilter !== "all" || aiFilter !== "all" || availabilityFilter != null || minRatingFilter !== "all" || tagFilter !== "all" || orientationFilter !== "all" || markedFilter !== "all") && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -539,6 +609,10 @@ const Index = () => {
                       setLocationFilter("all");
                       setAiFilter("all");
                       setAvailabilityFilter(undefined);
+                      setMinRatingFilter("all");
+                      setTagFilter("all");
+                      setOrientationFilter("all");
+                      setMarkedFilter("all");
                       setVisibleCount(PAGE_SIZE);
                       setBrowsePage(0);
                     }}
@@ -672,7 +746,14 @@ const Index = () => {
                 {browseQuery.isLoading ? (
                   <div className="text-center py-10 text-muted-foreground text-sm">Loading...</div>
                 ) : (
-                  <ResultsTable mode="browse" items={browseItems} onRowClick={setSelectedItem} />
+                  <ResultsTable
+                    mode="browse"
+                    items={browseItems}
+                    onRowClick={setSelectedItem}
+                    selectable
+                    selectedIds={selectedIds}
+                    onSelectionChange={setSelectedIds}
+                  />
                 )}
                 {browseTotal > PAGE_SIZE && (
                   <div className="flex items-center justify-between pt-1">
@@ -759,6 +840,150 @@ const Index = () => {
           onClose={() => setSelectedItem(null)}
           onNavigate={setSelectedItem}
         />
+
+        {/* Floating bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-background border border-border rounded-lg px-4 py-2 shadow-lg">
+            <span className="text-xs text-muted-foreground mr-2">
+              {selectedIds.size} selected
+            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs gap-1">
+                  <Star className="h-3 w-3" />
+                  Rate
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="center" side="top">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <button
+                      key={i}
+                      className="p-0.5"
+                      onClick={async () => {
+                        const ids = Array.from(selectedIds);
+                        for (const id of ids) await setRating(id, i);
+                        queryClient.invalidateQueries({ queryKey: ["media"] });
+                        toast({ title: "Done", description: `Rated ${ids.length} items ${i} star${i !== 1 ? "s" : ""}`, duration: 3000 });
+                      }}
+                    >
+                      <Star className="h-5 w-5 text-amber-400 hover:scale-110 transition-transform" weight="fill" />
+                    </button>
+                  ))}
+                  <button
+                    className="ml-1 p-0.5 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={async () => {
+                      const ids = Array.from(selectedIds);
+                      for (const id of ids) await setRating(id, 0);
+                      queryClient.invalidateQueries({ queryKey: ["media"] });
+                      toast({ title: "Done", description: `Cleared rating for ${ids.length} items`, duration: 3000 });
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs gap-1">
+                  <Tag className="h-3 w-3" />
+                  Add Tag
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="center" side="top">
+                {(tagsQuery.data ?? []).map((t) => (
+                  <button
+                    key={t.id}
+                    className="w-full text-left text-xs px-2 py-1 rounded hover:bg-muted flex items-center gap-2"
+                    onClick={async () => {
+                      await bulkAddTag(t.id, Array.from(selectedIds));
+                      queryClient.invalidateQueries({ queryKey: ["tags"] });
+                      queryClient.invalidateQueries({ queryKey: ["item-tags"] });
+                      toast({ title: "Done", description: `Tagged ${selectedIds.size} items with "${t.name}"`, duration: 3000 });
+                    }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: t.color || "#888" }}
+                    />
+                    {t.name}
+                  </button>
+                ))}
+                {(tagsQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground px-2 py-1">No tags yet</p>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs gap-1">
+                  <Folder className="h-3 w-3" />
+                  Add to Collection
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="center" side="top">
+                {(collectionsQuery.data ?? []).map((c) => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left text-xs px-2 py-1 rounded hover:bg-muted"
+                    onClick={() => {
+                      addToCollectionMut.mutate({ collectionId: c.id, mediaIds: Array.from(selectedIds) });
+                      toast({ title: "Added", description: `Added ${selectedIds.size} items to "${c.name}"`, duration: 3000 });
+                    }}
+                  >
+                    {c.name} ({c.itemCount})
+                  </button>
+                ))}
+                {(collectionsQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground px-2 py-1">No collections yet</p>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1"
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                for (const id of ids) await setMarkedForDelete(id, true);
+                queryClient.invalidateQueries({ queryKey: ["media"] });
+                toast({ title: "Done", description: `Marked ${ids.length} items for delete`, duration: 3000 });
+              }}
+            >
+              <Trash className="h-3 w-3" />
+              Mark for Delete
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1"
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                for (const id of ids) await setMarkedForDelete(id, false);
+                queryClient.invalidateQueries({ queryKey: ["media"] });
+                toast({ title: "Done", description: `Unmarked ${ids.length} items`, duration: 3000 });
+              }}
+            >
+              <Trash className="h-3 w-3" />
+              Unmark
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
+          </div>
+        )}
       </div>
     </SidebarProvider>
   );

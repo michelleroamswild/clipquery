@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 7;
+const CURRENT_VERSION = 12;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -99,6 +99,53 @@ export function runMigrations(db?: Database.Database): void {
     if (!colNames.has("storage_scan_state")) {
       conn.exec(
         `ALTER TABLE media_items ADD COLUMN storage_scan_state TEXT NOT NULL DEFAULT 'not_started'`
+      );
+    }
+  }
+
+  if (currentVersion < 8) {
+    // v7 → v8: Add favorites, tags, and collections
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("is_favorite") && !colNames.has("rating")) {
+      conn.exec(
+        "ALTER TABLE media_items ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"
+      );
+    }
+  }
+
+  if (currentVersion < 10) {
+    // v8/v9 → v10: Rename is_favorite to rating (5-star)
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (colNames.has("is_favorite")) {
+      conn.exec("ALTER TABLE media_items RENAME COLUMN is_favorite TO rating");
+    } else if (!colNames.has("rating")) {
+      conn.exec(
+        "ALTER TABLE media_items ADD COLUMN rating INTEGER NOT NULL DEFAULT 0"
+      );
+    }
+  }
+
+  if (currentVersion < 11) {
+    // v10 → v11: Add width/height columns for aspect ratio filtering
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("width")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN width INTEGER;");
+    }
+    if (!colNames.has("height")) {
+      conn.exec("ALTER TABLE media_items ADD COLUMN height INTEGER;");
+    }
+  }
+
+  if (currentVersion < 12) {
+    // v11 → v12: Add marked_for_delete column
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("marked_for_delete")) {
+      conn.exec(
+        "ALTER TABLE media_items ADD COLUMN marked_for_delete INTEGER NOT NULL DEFAULT 0"
       );
     }
   }

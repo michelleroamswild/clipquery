@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import VolumeDetail from "./pages/VolumeDetail";
 import StorageHelper from "./pages/StorageHelper";
+import Collections from "./pages/Collections";
+import ClipFinder from "./pages/ClipFinder";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +23,8 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/storage" element={<StorageHelper />} />
+          <Route path="/collections" element={<Collections />} />
+          <Route path="/clip-finder" element={<ClipFinder />} />
           <Route path="/volume/:volumeName" element={<VolumeDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

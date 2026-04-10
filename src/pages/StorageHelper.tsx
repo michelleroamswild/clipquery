@@ -90,9 +90,7 @@ async function handleOpenInFinder(path: string) {
 // ── Scan Progress Section ───────────────────────────────────────
 
 function ScanProgress() {
-  const { data: status } = useStorageScanStatus(undefined);
-  const statusPoll = useStorageScanStatus(status?.running ? 2000 : false);
-  const s = statusPoll.data ?? status;
+  const { data: s } = useStorageScanStatus(2000);
   const startMut = useStartStorageScan();
   const stopMut = useStopStorageScan();
 

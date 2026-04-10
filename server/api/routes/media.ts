@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { execFile } from "child_process";
+import fs from "fs";
+import path from "path";
 import exifr from "exifr";
 import { getDb } from "../../db/connection.js";
 import { geocodeBatch, geocodePending } from "../../geocode.js";
@@ -16,9 +18,13 @@ router.get("/media", (req, res) => {
   const volume = req.query.volume as string | undefined;
   const fileExt = req.query.file_ext as string | undefined;
   const hasGps = req.query.has_gps as string | undefined;
+  const minRating = req.query.min_rating as string | undefined;
+  const tag = req.query.tag as string | undefined;
   const llavaState = req.query.llava_state as string | undefined;
   const llavaVersion = req.query.llava_version as string | undefined;
   const mtimeSince = req.query.mtime_since as string | undefined;
+  const orientation = req.query.orientation as string | undefined;
+  const markedForDelete = req.query.marked_for_delete as string | undefined;
   const sort = (req.query.sort as string) || "updated_at";
   const order = (req.query.order as string) || "desc";
   const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
@@ -42,6 +48,19 @@ router.get("/media", (req, res) => {
   if (fileExt) {
     conditions.push("file_ext = @fileExt");
     params.fileExt = fileExt.startsWith(".") ? fileExt : `.${fileExt}`;
+  }
+  if (minRating) {
+    const mr = parseInt(minRating);
+    if (!isNaN(mr) && mr >= 1 && mr <= 5) {
+      conditions.push("rating >= @minRating");
+      params.minRating = mr;
+    }
+  }
+  if (tag) {
+    conditions.push(
+      "EXISTS (SELECT 1 FROM media_tags mt JOIN tags t ON mt.tag_id = t.id WHERE mt.media_item_id = media_items.id AND t.name = @tag)"
+    );
+    params.tag = tag;
   }
   if (hasGps === "true") {
     conditions.push("latitude IS NOT NULL AND longitude IS NOT NULL");
@@ -67,9 +86,23 @@ router.get("/media", (req, res) => {
     }
   }
 
+  if (markedForDelete === "true") {
+    conditions.push("marked_for_delete = 1");
+  } else if (markedForDelete === "false") {
+    conditions.push("marked_for_delete = 0");
+  }
+
+  if (orientation === "landscape") {
+    conditions.push("width IS NOT NULL AND width > height");
+  } else if (orientation === "portrait") {
+    conditions.push("height IS NOT NULL AND height > width");
+  } else if (orientation === "square") {
+    conditions.push("width IS NOT NULL AND width = height");
+  }
+
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const allowedSorts = ["updated_at", "filename", "size_bytes", "mtime_ms", "created_at"];
+  const allowedSorts = ["updated_at", "filename", "size_bytes", "mtime_ms", "created_at", "rating"];
   const sortCol = allowedSorts.includes(sort) ? sort : "updated_at";
   const sortDir = order === "asc" ? "ASC" : "DESC";
 
@@ -257,6 +290,114 @@ router.get("/geocode/search", async (req, res) => {
     res.json({ results });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** POST /api/media/:id/mark-delete - Toggle marked for delete */
+router.post("/media/:id/mark-delete", (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { marked } = req.body as { marked: boolean };
+
+  if (typeof marked !== "boolean") {
+    res.status(400).json({ error: "marked must be a boolean" });
+    return;
+  }
+
+  const item = db.prepare("SELECT id FROM media_items WHERE id = ?").get(id);
+  if (!item) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  db.prepare("UPDATE media_items SET marked_for_delete = ? WHERE id = ?").run(marked ? 1 : 0, id);
+  res.json({ marked });
+});
+
+/** POST /api/media/:id/rating - Set rating (0-5) */
+router.post("/media/:id/rating", (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+  const { rating } = req.body as { rating: number };
+
+  if (typeof rating !== "number" || rating < 0 || rating > 5 || !Number.isInteger(rating)) {
+    res.status(400).json({ error: "rating must be an integer 0-5" });
+    return;
+  }
+
+  const item = db.prepare("SELECT id FROM media_items WHERE id = ?").get(id);
+  if (!item) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  db.prepare("UPDATE media_items SET rating = ? WHERE id = ?").run(rating, id);
+  res.json({ rating });
+});
+
+/** GET /api/media/:id/stream - Stream original media file with range support */
+router.get("/media/:id/stream", (req, res) => {
+  const db = getDb();
+  const id = parseInt(req.params.id);
+
+  const item = db.prepare("SELECT absolute_path, availability FROM media_items WHERE id = ?").get(id) as
+    | { absolute_path: string; availability: string }
+    | undefined;
+  if (!item || item.availability !== "online") {
+    res.status(404).json({ error: "Not found or offline" });
+    return;
+  }
+
+  const filePath = item.absolute_path;
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(filePath);
+  } catch {
+    res.status(404).json({ error: "File not found on disk" });
+    return;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeMap: Record<string, string> = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".m4v": "video/mp4",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".webm": "video/webm",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+  };
+  const contentType = mimeMap[ext] || "application/octet-stream";
+  const fileSize = stat.size;
+
+  const range = req.headers.range;
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunkSize = end - start + 1;
+
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": chunkSize,
+      "Content-Type": contentType,
+    });
+    fs.createReadStream(filePath, { start, end }).pipe(res);
+  } else {
+    res.writeHead(200, {
+      "Content-Length": fileSize,
+      "Content-Type": contentType,
+      "Accept-Ranges": "bytes",
+    });
+    fs.createReadStream(filePath).pipe(res);
   }
 });
 
