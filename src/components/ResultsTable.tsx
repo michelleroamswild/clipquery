@@ -50,6 +50,26 @@ function formatCoords(lat: number, lng: number): string {
   return `${Math.abs(lat).toFixed(4)}°${latDir}, ${Math.abs(lng).toFixed(4)}°${lngDir}`;
 }
 
+/** Pull the state/region from a Nominatim-style string like "City, County, State, Postcode, Country".
+ *  Walks right-to-left, skipping known country names and postcodes, and returns the first remaining segment. */
+const COUNTRY_NOISE = new Set([
+  "United States", "USA", "US",
+  "United Kingdom", "UK", "Great Britain",
+  "Canada", "Australia", "New Zealand", "México", "Mexico",
+]);
+
+function shortLocation(name: string): string {
+  const parts = name.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return "";
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (COUNTRY_NOISE.has(p)) continue;
+    if (/^\d{2,}(-\d+)?$/.test(p)) continue; // postcode
+    return p;
+  }
+  return parts[parts.length - 1];
+}
+
 export function ResultsTable(props: ResultsTableProps) {
   const isSearch = props.mode === "search";
   const { selectable, selectedIds, onSelectionChange } = props;
@@ -116,17 +136,17 @@ export function ResultsTable(props: ResultsTableProps) {
               />
             </TableHead>
           )}
-          <TableHead className="h-8 px-2 text-xs w-[48px]" />
+          <TableHead className="h-8 px-2 text-xs w-[72px]" />
           <TableHead className="h-8 px-2 text-xs">Filename</TableHead>
           {isSearch && <TableHead className="h-8 px-2 text-xs w-[60px]">Score</TableHead>}
-          <TableHead className="h-8 px-2 text-xs w-[120px]">Volume</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[60px]">Type</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[120px] hidden md:table-cell">Volume</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[60px] hidden sm:table-cell">Type</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[100px]">Date Created</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[260px]">Location</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[70px]">Status</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[110px] text-center">AI</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[80px]" />
+          <TableHead className="h-8 px-2 text-xs w-[100px] hidden sm:table-cell">Date Created</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[120px] hidden 2xl:table-cell">Location</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[70px] hidden sm:table-cell">Status</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[60px] text-center hidden 2xl:table-cell">AI</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[110px] hidden sm:table-cell">Rating</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[70px]" />
         </TableRow>
       </TableHeader>
@@ -164,14 +184,14 @@ export function ResultsTable(props: ResultsTableProps) {
                       return next;
                     })
                   }
-                  className="w-10 h-7 object-cover rounded-sm"
+                  className="w-16 h-10 object-cover rounded-sm"
                 />
               ) : (
-                <div className="w-10 h-7 rounded-sm bg-muted flex items-center justify-center">
+                <div className="w-16 h-10 rounded-sm bg-muted flex items-center justify-center">
                   {row.mediaItem?.type === "video" ? (
-                    <FilmStrip className="h-3.5 w-3.5 text-muted-foreground" />
+                    <FilmStrip className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <Image className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Image className="h-4 w-4 text-muted-foreground" />
                   )}
                 </div>
               )}
@@ -191,7 +211,7 @@ export function ResultsTable(props: ResultsTableProps) {
               <TableCell className="px-2 py-1.5 text-xs font-medium">
                 {row.score != null ? (
                   row.score <= 1 ? (
-                    <span className={`${row.score >= 0.5 ? "text-emerald-400" : row.score >= 0.25 ? "text-amber-400" : "text-muted-foreground"}`}>
+                    <span className={`${row.score >= 0.5 ? "text-emerald-700 dark:text-emerald-400" : row.score >= 0.25 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
                       {Math.round(row.score * 100)}%
                     </span>
                   ) : (
@@ -200,35 +220,35 @@ export function ResultsTable(props: ResultsTableProps) {
                 ) : "—"}
               </TableCell>
             )}
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px]" title={row.mediaItem?.volume_name ?? ""}>
+            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px] hidden md:table-cell" title={row.mediaItem?.volume_name ?? ""}>
               {row.mediaItem?.volume_name ?? "—"}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">
               .{row.ext}
             </TableCell>
             <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
               {formatFileSize(row.sizeBytes)}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">
               {row.date.toLocaleDateString()}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden 2xl:table-cell">
               {row.latitude != null && row.longitude != null ? (
                 <span
                   className="flex items-center gap-1 whitespace-nowrap"
-                  title={formatCoords(row.latitude, row.longitude)}
+                  title={row.locationName || formatCoords(row.latitude, row.longitude)}
                 >
-                  <MapPin className="h-3 w-3 text-green-400 shrink-0" />
-                  {row.locationName || formatCoords(row.latitude, row.longitude)}
+                  <MapPin className="h-3 w-3 text-green-700 dark:text-green-400 shrink-0" />
+                  {row.locationName ? shortLocation(row.locationName) : formatCoords(row.latitude, row.longitude)}
                 </span>
               ) : (
                 <span className="text-muted-foreground/50">—</span>
               )}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs">
+            <TableCell className="px-2 py-1.5 text-xs hidden sm:table-cell">
               {row.mediaItem && (
                 row.mediaItem.availability === "online" ? (
-                  <span className="flex items-center gap-1 text-green-400">
+                  <span className="flex items-center gap-1 text-green-700 dark:text-green-400">
                     <WifiHigh className="h-3 w-3 shrink-0" />
                     Online
                   </span>
@@ -240,48 +260,52 @@ export function ResultsTable(props: ResultsTableProps) {
                 )
               )}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-center">
+            <TableCell className="px-2 py-1.5 text-center hidden 2xl:table-cell">
               <div className="flex flex-col items-center gap-1">
                 {row.mediaItem?.llava_state === "done" && (
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
-                    (row.mediaItem?.llava_version ?? 0) >= 2
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-violet-500/15 text-violet-400"
-                  }`}>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
+                      (row.mediaItem?.llava_version ?? 0) >= 2
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                        : "bg-violet-500/15 text-violet-700 dark:text-violet-400"
+                    }`}
+                    title={`Analyzed${(row.mediaItem?.llava_version ?? 0) >= 2 ? " v2" : " v1"}`}
+                  >
                     <Brain className="h-3 w-3 shrink-0" />
-                    {(row.mediaItem?.llava_version ?? 0) >= 2 ? "Analyzed v2" : "Analyzed"}
+                    {(row.mediaItem?.llava_version ?? 0) >= 2 ? "v2" : "v1"}
                   </span>
                 )}
                 {row.mediaItem?.llava_state === "error" && (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-400">
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-700 dark:text-red-400">
                     <Warning className="h-3 w-3 shrink-0" />
                     Analysis error
                   </span>
                 )}
                 {row.mediaItem?.type === "video" && row.mediaItem?.ai_state === "error" && (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-400">
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-700 dark:text-red-400">
                     <Warning className="h-3 w-3 shrink-0" />
                     Thumbnail error
                   </span>
                 )}
               </div>
             </TableCell>
-            <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-0">
+            <TableCell className="px-2 py-1.5 hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <button
                     key={i}
-                    className="p-0"
-                    onClick={() =>
-                      row.mediaItem &&
-                      setRatingMut.mutate({
-                        id: row.mediaItem.id,
-                        rating: row.mediaItem.rating === i ? 0 : i,
-                      })
-                    }
+                    type="button"
+                    aria-label={`Rate ${i} star${i === 1 ? "" : "s"}`}
+                    className="inline-flex items-center justify-center h-6 w-5 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!row.mediaItem) return;
+                      const next = i === 1 && row.mediaItem.rating === 1 ? 0 : i;
+                      setRatingMut.mutate({ id: row.mediaItem.id, rating: next });
+                    }}
                   >
                     <Star
-                      className={`h-3 w-3 ${i <= (row.mediaItem?.rating ?? 0) ? "text-amber-400" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
+                      className={`h-3.5 w-3.5 transition-colors ${i <= (row.mediaItem?.rating ?? 0) ? "text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/70"}`}
                       weight={i <= (row.mediaItem?.rating ?? 0) ? "fill" : "regular"}
                     />
                   </button>
@@ -318,11 +342,11 @@ export function ResultsTable(props: ResultsTableProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-xs"
+                  className="h-6 w-6 p-0"
+                  title="Open in Finder"
                   onClick={(e) => { e.stopPropagation(); handleOpenInFinder(row.fullPath); }}
                 >
-                  <ArrowSquareOut className="mr-1 h-3.5 w-3.5" />
-                  Open in Finder
+                  <ArrowSquareOut className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </TableCell>

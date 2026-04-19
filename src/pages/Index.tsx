@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { MagnifyingGlass, MapPin, FilmStrip, CaretDown, Brain, Stop, X, Star, Tag, Folder, CheckSquare, Trash } from "@phosphor-icons/react";
+import { MagnifyingGlass, MapPin, FilmStrip, Image, CaretDown, Brain, Stop, X, Star, Tag, Folder, CheckSquare, Trash } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,7 @@ import { VideoSearchSidebar } from "@/components/VideoSearchSidebar";
 import { ResultsTable } from "@/components/ResultsTable";
 import { MediaDetailSheet } from "@/components/MediaDetailSheet";
 import { mockSearch } from "@/lib/mock-data";
-import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, fetchLlavaStatus, fetchOllamaHealth, searchMedia, startBackgroundAnalysis, stopBackgroundAnalysis, fetchBackgroundStatus, setRating, bulkAddTag, setMarkedForDelete } from "@/lib/api-client";
+import { triggerGeocode, fetchGeocodeStatus, triggerThumbnailGeneration, fetchThumbnailStatus, triggerPhotoThumbGeneration, fetchPhotoThumbStatus, fetchLlavaStatus, fetchOllamaHealth, searchMedia, startBackgroundAnalysis, stopBackgroundAnalysis, fetchBackgroundStatus, setRating, bulkAddTag, setMarkedForDelete } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 import { useMediaList, useMediaStats, useMediaExtensions } from "@/hooks/use-media";
 import { useQueryClient } from "@tanstack/react-query";
@@ -64,19 +64,17 @@ const Index = () => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const [sortBy, setSortBy] = useState<SortOption>("score");
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [selectedItem, setSelectedItem] = useState<MediaItemRow | null>(null);
 
-  const [dateFilter, setDateFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [volumeFilter, setVolumeFilter] = useState("all");
   const [aiFilter, setAiFilter] = useState("all");
   const [minRatingFilter, setMinRatingFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
-  const [orientationFilter, setOrientationFilter] = useState("all");
   const [markedFilter, setMarkedFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
@@ -85,23 +83,11 @@ const Index = () => {
   const addToCollectionMut = useAddToCollection();
 
   // Browse-mode sort & pagination (server-side)
-  const [browseSort, setBrowseSort] = useState("mtime_ms");
-  const [browseOrder, setBrowseOrder] = useState<"asc" | "desc">("desc");
+  const [browseSort, setBrowseSort] = useState("has_preview");
+  const [browseOrder, setBrowseOrder] = useState<"asc" | "desc">("asc");
   const [browsePage, setBrowsePage] = useState(0);
   const extensionsQuery = useMediaExtensions();
   const allExtensions = extensionsQuery.data?.extensions ?? [];
-
-  // Compute mtime_since from dateFilter
-  const mtimeSince = useMemo(() => {
-    const msMap: Record<string, number> = {
-      "7d": 7 * 86400000,
-      "30d": 30 * 86400000,
-      "90d": 90 * 86400000,
-      "1y": 365 * 86400000,
-    };
-    const cutoff = msMap[dateFilter];
-    return cutoff ? String(Date.now() - cutoff) : undefined;
-  }, [dateFilter]);
 
   const browseQuery = useMediaList({
     limit: PAGE_SIZE,
@@ -112,10 +98,8 @@ const Index = () => {
     has_gps: locationFilter === "has" ? "true" : locationFilter === "none" ? "false" : undefined,
     llava_state: aiFilter === "v1" || aiFilter === "v2" ? "done" : aiFilter !== "all" ? aiFilter : undefined,
     llava_version: aiFilter === "v1" ? "1" : aiFilter === "v2" ? "2" : undefined,
-    mtime_since: mtimeSince,
     min_rating: minRatingFilter !== "all" ? minRatingFilter : undefined,
     tag: tagFilter !== "all" ? tagFilter : undefined,
-    orientation: orientationFilter !== "all" ? orientationFilter : undefined,
     marked_for_delete: markedFilter === "true" ? "true" : markedFilter === "false" ? "false" : undefined,
     sort: browseSort,
     order: browseOrder,
@@ -131,6 +115,8 @@ const Index = () => {
   // Thumbnail generation state
   const [thumbnailGenerating, setThumbnailGenerating] = useState(false);
   const [thumbnailPending, setThumbnailPending] = useState(0);
+  const [photoThumbGenerating, setPhotoThumbGenerating] = useState(false);
+  const [photoThumbPending, setPhotoThumbPending] = useState(0);
 
   // LLaVA analysis state
   const [llavaAnalyzing, setLlavaAnalyzing] = useState(false);
@@ -152,6 +138,7 @@ const Index = () => {
     fetchGeocodeStatus().then((s) => setGeocodePending(s.pending)).catch(() => {});
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
     fetchThumbnailStatus(vol).then((s) => setThumbnailPending(s.pending + s.queued)).catch(() => {});
+    fetchPhotoThumbStatus(vol).then((s) => setPhotoThumbPending(s.pending + s.queued)).catch(() => {});
     fetchLlavaStatus(vol, filteredMediaType).then((s) => setLlavaAnalyzable(s.analyzable + s.queued)).catch(() => {});
     fetchOllamaHealth().then((h) => setOllamaHealthy(h.running && h.model_loaded)).catch(() => setOllamaHealthy(false));
     // Resume UI state if background analysis is already running
@@ -234,6 +221,33 @@ const Index = () => {
     }
   }, [queryClient, volumeFilter]);
 
+  const handlePhotoThumbGenerate = useCallback(async (limit?: number) => {
+    setPhotoThumbGenerating(true);
+    const vol = volumeFilter !== "all" ? volumeFilter : undefined;
+    let processed = 0;
+    const target = limit != null ? ` of ${limit}` : "";
+    const t = toast({ title: "Generating photo previews", description: "Starting..." });
+    try {
+      let remaining = Infinity;
+      while (remaining > 0 && (limit == null || processed < limit)) {
+        const res = await triggerPhotoThumbGeneration(vol);
+        remaining = res.remaining;
+        processed += res.processed;
+        setPhotoThumbPending(remaining);
+        t.update({ title: "Generating photo previews", description: `${processed}${target} done, ${remaining.toLocaleString()} remaining` });
+        queryClient.invalidateQueries({ queryKey: ["media"] });
+        if (res.processed === 0) break;
+      }
+      t.update({ title: "Photo previews complete", description: `${processed} generated` });
+      setTimeout(() => t.dismiss(), 5000);
+    } catch {
+      t.update({ title: "Photo previews stopped", description: `${processed}${target} done` });
+      setTimeout(() => t.dismiss(), 5000);
+    } finally {
+      setPhotoThumbGenerating(false);
+    }
+  }, [queryClient, volumeFilter]);
+
   // Start background analysis on the server
   const handleLlavaAnalyze = useCallback(async (limit?: number) => {
     const vol = volumeFilter !== "all" ? volumeFilter : undefined;
@@ -303,7 +317,6 @@ const Index = () => {
     setHasSearched(true);
     setVisibleCount(PAGE_SIZE);
     setTypeFilter("all");
-    setDateFilter("all");
     setLocationFilter("all");
     setAiFilter("all");
   };
@@ -335,28 +348,12 @@ const Index = () => {
       list = list.filter((r) => r.video.latitude == null || r.video.longitude == null);
     }
 
-    if (dateFilter !== "all") {
-      const now = Date.now();
-      const msMap: Record<string, number> = {
-        "7d": 7 * 86400000,
-        "30d": 30 * 86400000,
-        "90d": 90 * 86400000,
-        "1y": 365 * 86400000,
-      };
-      const cutoff = msMap[dateFilter];
-      if (cutoff) {
-        list = list.filter((r) => now - r.video.modifiedAt.getTime() <= cutoff);
-      }
-    }
-
     return list;
-  }, [results, typeFilter, locationFilter, dateFilter]);
+  }, [results, typeFilter, locationFilter]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
     switch (sortBy) {
-      case "score":
-        return copy.sort((a, b) => b.confidence - a.confidence);
       case "newest":
         return copy.sort(
           (a, b) =>
@@ -384,14 +381,14 @@ const Index = () => {
 
         <SidebarInset>
           {/* Header */}
-          <header className="flex items-center gap-3 border-b border-border px-6 py-3">
+          <header className="flex items-center gap-3 border-b border-border px-4 md:px-6 py-3">
             <SidebarTrigger />
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">
+            <h1 className="text-base md:text-lg font-semibold text-foreground tracking-tight">
               Local Video Search
             </h1>
           </header>
 
-          <div className="w-full px-6 py-6 space-y-6">
+          <div className="w-full px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
             {/* Search bar */}
             <form
               onSubmit={(e) => {
@@ -436,11 +433,10 @@ const Index = () => {
                     value={sortBy}
                     onValueChange={(v) => setSortBy(v as SortOption)}
                   >
-                    <SelectTrigger className="w-44 text-xs">
+                    <SelectTrigger className="w-44 h-8 px-2.5 py-1 text-xs">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="score">Confidence (high-low)</SelectItem>
                       <SelectItem value="newest">Newest file first</SelectItem>
                       <SelectItem value="shortest-timestamp">Shortest timestamp</SelectItem>
                     </SelectContent>
@@ -455,10 +451,11 @@ const Index = () => {
                       setBrowsePage(0);
                     }}
                   >
-                    <SelectTrigger className="w-44 text-xs">
+                    <SelectTrigger className="w-44 h-8 px-2.5 py-1 text-xs">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="has_preview:asc">With preview first</SelectItem>
                       <SelectItem value="mtime_ms:desc">Newest first</SelectItem>
                       <SelectItem value="mtime_ms:asc">Oldest first</SelectItem>
                       <SelectItem value="filename:asc">Name (A-Z)</SelectItem>
@@ -469,21 +466,8 @@ const Index = () => {
                   </Select>
                 )}
 
-                <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-36 text-xs">
-                    <SelectValue placeholder="Date created" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Any date</SelectItem>
-                    <SelectItem value="7d">Last 7 days</SelectItem>
-                    <SelectItem value="30d">Last 30 days</SelectItem>
-                    <SelectItem value="90d">Last 90 days</SelectItem>
-                    <SelectItem value="1y">Last year</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-32 text-xs">
+<Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
+                  <SelectTrigger className="w-32 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="File type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,7 +481,7 @@ const Index = () => {
                 </Select>
 
                 <Select value={volumeFilter} onValueChange={(v) => { setVolumeFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-40 text-xs">
+                  <SelectTrigger className="w-40 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="Volume" />
                   </SelectTrigger>
                   <SelectContent>
@@ -511,7 +495,7 @@ const Index = () => {
                 </Select>
 
                 <Select value={locationFilter} onValueChange={(v) => { setLocationFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-36 text-xs">
+                  <SelectTrigger className="w-36 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="Location" />
                   </SelectTrigger>
                   <SelectContent>
@@ -522,7 +506,7 @@ const Index = () => {
                 </Select>
 
                 <Select value={availabilityFilter ?? "all"} onValueChange={(v) => { setAvailabilityFilter(v === "all" ? undefined : v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-32 text-xs">
+                  <SelectTrigger className="w-32 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="Availability" />
                   </SelectTrigger>
                   <SelectContent>
@@ -533,7 +517,7 @@ const Index = () => {
                 </Select>
 
                 <Select value={aiFilter} onValueChange={(v) => { setAiFilter(v); setVisibleCount(PAGE_SIZE); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-36 text-xs">
+                  <SelectTrigger className="w-36 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="AI status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -547,7 +531,7 @@ const Index = () => {
                 </Select>
 
                 <Select value={minRatingFilter} onValueChange={(v) => { setMinRatingFilter(v); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-36 text-xs">
+                  <SelectTrigger className="w-36 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="Min Rating" />
                   </SelectTrigger>
                   <SelectContent>
@@ -561,7 +545,7 @@ const Index = () => {
                 </Select>
 
                 <Select value={tagFilter} onValueChange={(v) => { setTagFilter(v); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-36 text-xs">
+                  <SelectTrigger className="w-36 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="Tag" />
                   </SelectTrigger>
                   <SelectContent>
@@ -574,20 +558,8 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
-                <Select value={orientationFilter} onValueChange={(v) => { setOrientationFilter(v); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-36 text-xs">
-                    <SelectValue placeholder="Orientation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Any orientation</SelectItem>
-                    <SelectItem value="landscape">Landscape</SelectItem>
-                    <SelectItem value="portrait">Portrait</SelectItem>
-                    <SelectItem value="square">Square</SelectItem>
-                  </SelectContent>
-                </Select>
-
                 <Select value={markedFilter} onValueChange={(v) => { setMarkedFilter(v); setBrowsePage(0); }}>
-                  <SelectTrigger className="w-40 text-xs">
+                  <SelectTrigger className="w-40 h-8 px-2.5 py-1 text-xs">
                     <SelectValue placeholder="Delete flag" />
                   </SelectTrigger>
                   <SelectContent>
@@ -597,13 +569,12 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
-                {(dateFilter !== "all" || typeFilter !== "all" || volumeFilter !== "all" || locationFilter !== "all" || aiFilter !== "all" || availabilityFilter != null || minRatingFilter !== "all" || tagFilter !== "all" || orientationFilter !== "all" || markedFilter !== "all") && (
+                {(typeFilter !== "all" || volumeFilter !== "all" || locationFilter !== "all" || aiFilter !== "all" || availabilityFilter != null || minRatingFilter !== "all" || tagFilter !== "all" || markedFilter !== "all") && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="text-xs text-muted-foreground"
                     onClick={() => {
-                      setDateFilter("all");
                       setTypeFilter("all");
                       setVolumeFilter("all");
                       setLocationFilter("all");
@@ -611,7 +582,6 @@ const Index = () => {
                       setAvailabilityFilter(undefined);
                       setMinRatingFilter("all");
                       setTagFilter("all");
-                      setOrientationFilter("all");
                       setMarkedFilter("all");
                       setVisibleCount(PAGE_SIZE);
                       setBrowsePage(0);
@@ -641,14 +611,14 @@ const Index = () => {
             {/* Browse all view */}
             {!hasSearched && totalCount > 0 && (
               <>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground">
                     {browseTotal.toLocaleString()} file{browseTotal !== 1 ? "s" : ""} indexed
                     {browseTotal > PAGE_SIZE && (
                       <> &middot; Page {browsePage + 1} of {Math.ceil(browseTotal / PAGE_SIZE)}</>
                     )}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {thumbnailPending > 0 && (
                       <div className="flex items-center">
                         <Button
@@ -679,6 +649,40 @@ const Index = () => {
                             <DropdownMenuItem onClick={() => handleThumbnailGenerate(100)}>Generate 100</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleThumbnailGenerate(500)}>Generate 500</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleThumbnailGenerate()}>Generate all</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
+                    {photoThumbPending > 0 && (
+                      <div className="flex items-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs rounded-r-none border-r-0"
+                          disabled={photoThumbGenerating}
+                          onClick={() => handlePhotoThumbGenerate(200)}
+                        >
+                          <Image className="mr-1 h-3 w-3" />
+                          {photoThumbGenerating
+                            ? `Generating... (${photoThumbPending.toLocaleString()} left)`
+                            : `Generate photo previews (${photoThumbPending.toLocaleString()})`}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs rounded-l-none px-1.5"
+                              disabled={photoThumbGenerating}
+                            >
+                              <CaretDown className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handlePhotoThumbGenerate(100)}>Generate 100</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePhotoThumbGenerate(500)}>Generate 500</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePhotoThumbGenerate(2000)}>Generate 2,000</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePhotoThumbGenerate()}>Generate all</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -843,7 +847,7 @@ const Index = () => {
 
         {/* Floating bulk action bar */}
         {selectedIds.size > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-background border border-border rounded-lg px-4 py-2 shadow-lg">
+          <div className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-1/2 md:right-auto md:-translate-x-1/2 z-50 flex flex-wrap items-center gap-2 bg-background border border-border rounded-lg px-3 py-2 md:px-4 shadow-lg">
             <span className="text-xs text-muted-foreground mr-2">
               {selectedIds.size} selected
             </span>

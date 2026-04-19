@@ -217,6 +217,16 @@ export function fetchThumbnailStatus(volume?: string): Promise<ThumbnailStatus> 
   return request<ThumbnailStatus>(`/thumbnails/status${qs}`);
 }
 
+export function triggerPhotoThumbGeneration(volume?: string): Promise<ThumbnailGenerateResult> {
+  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+  return request<ThumbnailGenerateResult>(`/thumbnails/photos/generate${qs}`, { method: "POST" });
+}
+
+export function fetchPhotoThumbStatus(volume?: string): Promise<ThumbnailStatus> {
+  const qs = volume ? `?volume=${encodeURIComponent(volume)}` : "";
+  return request<ThumbnailStatus>(`/thumbnails/photos/status${qs}`);
+}
+
 /** Build stream URL for playing/viewing original media file */
 export function streamUrl(id: number): string {
   return `${BASE}/media/${id}/stream`;

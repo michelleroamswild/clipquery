@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowSquareOut, ArrowsClockwise, CaretLeft, CaretRight, FilmStrip, Image, MapPin, Brain, Camera, X, Star, Plus, Tag, Folder, Trash } from "@phosphor-icons/react";
 import {
   Sheet,
@@ -31,7 +31,13 @@ function formatCoords(lat: number, lng: number): string {
   return `${Math.abs(lat).toFixed(4)}${latDir}, ${Math.abs(lng).toFixed(4)}${lngDir}`;
 }
 
-export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: MediaDetailSheetProps) {
+export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavigate }: MediaDetailSheetProps) {
+  // Keep the displayed row in sync with the latest list data (query invalidation
+  // after e.g. a rating mutation doesn't update the parent's selectedItem state).
+  const item = useMemo(() => {
+    if (!propItem) return null;
+    return items?.find((i) => i.id === propItem.id) ?? propItem;
+  }, [propItem, items]);
   const [generating, setGenerating] = useState(false);
   const [generatedThumbUrl, setGeneratedThumbUrl] = useState<string | null>(null);
   const [thumbBroken, setThumbBroken] = useState(false);
@@ -132,7 +138,8 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
       } else if (e.key >= "1" && e.key <= "5") {
         e.preventDefault();
         const rating = parseInt(e.key, 10);
-        setRatingMut.mutate({ id: item.id, rating: item.rating === rating ? 0 : rating });
+        const next = rating === 1 && item.rating === 1 ? 0 : rating;
+        setRatingMut.mutate({ id: item.id, rating: next });
       }
     };
     window.addEventListener("keydown", handler);
@@ -207,7 +214,7 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" hideClose className="w-[600px] sm:max-w-[600px] flex flex-col p-0">
+      <SheetContent side="right" hideClose className="w-full sm:w-[600px] sm:max-w-[600px] flex flex-col p-0">
         {/* Header bar */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0">
           <div className="flex-1 min-w-0">
@@ -228,20 +235,21 @@ export function MediaDetailSheet({ item, items, open, onClose, onNavigate }: Med
               weight={item.marked_for_delete === 1 ? "fill" : "regular"}
             />
           </button>
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center shrink-0">
             {[1, 2, 3, 4, 5].map((i) => (
               <button
                 key={i}
-                className="p-0"
-                onClick={() =>
-                  setRatingMut.mutate({
-                    id: item.id,
-                    rating: item.rating === i ? 0 : i,
-                  })
-                }
+                type="button"
+                aria-label={`Rate ${i} star${i === 1 ? "" : "s"}`}
+                className="inline-flex items-center justify-center h-7 w-6 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const next = i === 1 && item.rating === 1 ? 0 : i;
+                  setRatingMut.mutate({ id: item.id, rating: next });
+                }}
               >
                 <Star
-                  className={`h-4 w-4 ${i <= item.rating ? "text-amber-400" : "text-muted-foreground"}`}
+                  className={`h-4 w-4 transition-colors ${i <= item.rating ? "text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/70"}`}
                   weight={i <= item.rating ? "fill" : "regular"}
                 />
               </button>

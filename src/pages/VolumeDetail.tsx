@@ -238,7 +238,7 @@ function FolderDetailPanel({
   };
 
   return (
-    <div className="w-80 border-l border-border bg-background flex flex-col shrink-0">
+    <div className="fixed inset-0 z-40 md:static md:inset-auto w-full md:w-80 border-l border-border bg-background flex flex-col shrink-0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="text-sm font-semibold truncate">Folder Details</h3>
         <button
@@ -450,7 +450,7 @@ const VolumeDetail = () => {
 
         <SidebarInset>
           <div className="flex h-screen flex-col">
-            <header className="flex items-center gap-3 border-b border-border px-6 py-3 shrink-0">
+            <header className="flex items-center gap-3 border-b border-border px-4 md:px-6 py-3 shrink-0">
               <SidebarTrigger />
               <Link
                 to="/dashboard"
@@ -458,15 +458,15 @@ const VolumeDetail = () => {
               >
                 <ArrowLeft className="h-4 w-4" />
               </Link>
-              <HardDrive className="h-5 w-5 text-muted-foreground" />
-              <h1 className="text-lg font-semibold text-foreground tracking-tight">
+              <HardDrive className="h-5 w-5 text-muted-foreground shrink-0" />
+              <h1 className="text-base md:text-lg font-semibold text-foreground tracking-tight truncate">
                 {decodedVolume || "Unknown Volume"}
               </h1>
             </header>
 
             <div className="flex flex-1 min-h-0">
               {/* Main content: stats + folder tree */}
-              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+              <div className="flex-1 min-w-0 overflow-y-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
                 {/* Volume stats header */}
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1.5">
@@ -505,7 +505,7 @@ const VolumeDetail = () => {
                     </p>
                   )}
                   {folders.length > 0 && (
-                    <ScrollArea className="h-[calc(100vh-280px)] rounded-md border p-3">
+                    <ScrollArea className="h-[calc(100vh-320px)] md:h-[calc(100vh-280px)] rounded-md border p-3">
                       <div className="space-y-0.5">
                         {folders.map((folder) => (
                           <FolderTreeNode

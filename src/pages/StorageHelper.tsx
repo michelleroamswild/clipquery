@@ -318,13 +318,13 @@ function StorageTableHeader({
         {extraColumns?.map((col) => (
           <TableHead key={col.label} className={`h-8 px-2 text-xs ${col.className ?? ""}`}>{col.label}</TableHead>
         ))}
-        <TableHead className="h-8 px-2 text-xs w-[120px]">Volume</TableHead>
-        <TableHead className="h-8 px-2 text-xs w-[60px]">Type</TableHead>
+        <TableHead className="h-8 px-2 text-xs w-[120px] hidden md:table-cell">Volume</TableHead>
+        <TableHead className="h-8 px-2 text-xs w-[60px] hidden sm:table-cell">Type</TableHead>
         <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
-        <TableHead className="h-8 px-2 text-xs w-[100px]">Date Created</TableHead>
-        <TableHead className="h-8 px-2 text-xs w-[200px]">Location</TableHead>
-        <TableHead className="h-8 px-2 text-xs w-[70px]">Status</TableHead>
-        <TableHead className="h-8 px-2 text-xs w-[110px] text-center">AI</TableHead>
+        <TableHead className="h-8 px-2 text-xs w-[100px] hidden sm:table-cell">Date Created</TableHead>
+        <TableHead className="h-8 px-2 text-xs w-[200px] hidden 2xl:table-cell">Location</TableHead>
+        <TableHead className="h-8 px-2 text-xs w-[70px] hidden sm:table-cell">Status</TableHead>
+        <TableHead className="h-8 px-2 text-xs w-[110px] text-center hidden 2xl:table-cell">AI</TableHead>
         <TableHead className="h-8 px-2 text-xs w-[70px]" />
       </TableRow>
     </TableHeader>
@@ -353,25 +353,25 @@ function StorageTableRow({
         {item.filename}
       </TableCell>
       {extraCells}
-      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px]" title={item.volume_name ?? ""}>
+      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px] hidden md:table-cell" title={item.volume_name ?? ""}>
         {item.volume_name ?? "—"}
       </TableCell>
-      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">
         .{item.file_ext.replace(/^\./, "").toLowerCase()}
       </TableCell>
       <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
         {formatFileSize(item.size_bytes)}
       </TableCell>
-      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">
         {new Date(item.mtime_ms).toLocaleDateString()}
       </TableCell>
-      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden 2xl:table-cell">
         <LocationCell item={item} />
       </TableCell>
-      <TableCell className="px-2 py-1.5 text-xs">
+      <TableCell className="px-2 py-1.5 text-xs hidden sm:table-cell">
         <StatusCell item={item} />
       </TableCell>
-      <TableCell className="px-2 py-1.5 text-center">
+      <TableCell className="px-2 py-1.5 text-center hidden 2xl:table-cell">
         <AiCell item={item} />
       </TableCell>
       <TableCell className="px-2 py-1.5">
@@ -446,7 +446,7 @@ function ShortVideosTab({ filters }: { filters: StorageFilters }) {
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         <span className="text-sm text-muted-foreground whitespace-nowrap">Max duration:</span>
-        <Slider value={[maxDuration]} onValueChange={([v]) => setMaxDuration(v)} min={0.5} max={10} step={0.5} className="w-48" />
+        <Slider value={[maxDuration]} onValueChange={([v]) => setMaxDuration(v)} min={0.5} max={10} step={0.5} className="flex-1 max-w-[192px]" />
         <span className="text-sm font-mono w-12">{maxDuration}s</span>
       </div>
       <DeleteBar count={sel.selected.size} size={sel.selectedSize} onDelete={() => sel.setShowDelete(true)} />
@@ -496,7 +496,7 @@ function BlurryTab({ filters }: { filters: StorageFilters }) {
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         <span className="text-sm text-muted-foreground whitespace-nowrap">Max blur score:</span>
-        <Slider value={[maxBlur]} onValueChange={([v]) => setMaxBlur(v)} min={10} max={500} step={10} className="w-48" />
+        <Slider value={[maxBlur]} onValueChange={([v]) => setMaxBlur(v)} min={10} max={500} step={10} className="flex-1 max-w-[192px]" />
         <span className="text-sm font-mono w-12">{maxBlur}</span>
       </div>
       <DeleteBar count={sel.selected.size} size={sel.selectedSize} onDelete={() => sel.setShowDelete(true)} />
@@ -591,13 +591,13 @@ function DuplicatesTab({ filters }: { filters: StorageFilters }) {
                       </TableCell>
                       <TableCell className="px-2 py-1.5"><ThumbCell item={item} /></TableCell>
                       <TableCell className="px-2 py-1.5 text-xs truncate max-w-[300px]" title={item.absolute_path}>{item.filename}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px]" title={item.volume_name ?? ""}>{item.volume_name ?? "—"}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">.{item.file_ext.replace(/^\./, "").toLowerCase()}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px] hidden md:table-cell" title={item.volume_name ?? ""}>{item.volume_name ?? "—"}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">.{item.file_ext.replace(/^\./, "").toLowerCase()}</TableCell>
                       <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{formatFileSize(item.size_bytes)}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{new Date(item.mtime_ms).toLocaleDateString()}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground"><LocationCell item={item} /></TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs"><StatusCell item={item} /></TableCell>
-                      <TableCell className="px-2 py-1.5 text-center"><AiCell item={item} /></TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">{new Date(item.mtime_ms).toLocaleDateString()}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden 2xl:table-cell"><LocationCell item={item} /></TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs hidden sm:table-cell"><StatusCell item={item} /></TableCell>
+                      <TableCell className="px-2 py-1.5 text-center hidden 2xl:table-cell"><AiCell item={item} /></TableCell>
                       <TableCell className="px-2 py-1.5">
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleOpenInFinder(item.absolute_path); }}>
                           <ArrowSquareOut className="mr-1 h-3.5 w-3.5" />Finder
@@ -651,15 +651,15 @@ const StorageHelper = () => {
         />
 
         <SidebarInset>
-          <header className="flex items-center gap-3 border-b border-border px-6 py-3">
+          <header className="flex items-center gap-3 border-b border-border px-4 md:px-6 py-3">
             <SidebarTrigger />
-            <Broom className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">
+            <Broom className="h-5 w-5 text-muted-foreground shrink-0" />
+            <h1 className="text-base md:text-lg font-semibold text-foreground tracking-tight truncate">
               Storage Helper
             </h1>
           </header>
 
-          <div className="w-full px-6 py-6 space-y-6">
+          <div className="w-full px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
             <ScanProgress />
 
             {/* Filter bar */}

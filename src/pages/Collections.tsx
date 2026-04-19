@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  ArrowSquareOut, ArrowUp, ArrowDown, Folders, Image, Plus, Pencil, Trash, X,
+  ArrowLeft, ArrowSquareOut, ArrowUp, ArrowDown, Folders, Image, Plus, Pencil, Trash, X,
 } from "@phosphor-icons/react";
 import {
   SidebarProvider,
@@ -133,16 +133,16 @@ const Collections = () => {
         />
 
         <SidebarInset>
-          <header className="flex items-center gap-3 border-b border-border px-6 py-3">
+          <header className="flex items-center gap-3 border-b border-border px-4 md:px-6 py-3">
             <SidebarTrigger />
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">
+            <h1 className="text-base md:text-lg font-semibold text-foreground tracking-tight">
               Collections
             </h1>
           </header>
 
           <div className="flex flex-1 h-[calc(100vh-57px)]">
             {/* Left panel — collection list */}
-            <div className="w-72 border-r border-border flex flex-col shrink-0">
+            <div className={`${selectedCollectionId ? "hidden md:flex" : "flex"} w-full md:w-72 border-r border-border flex-col shrink-0`}>
               <div className="px-3 py-3 border-b border-border">
                 <Button size="sm" className="w-full text-xs" onClick={openCreateDialog}>
                   <Plus className="h-3 w-3 mr-1" />
@@ -179,7 +179,7 @@ const Collections = () => {
             </div>
 
             {/* Right panel — collection detail */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className={`${selectedCollectionId ? "flex" : "hidden md:flex"} flex-1 flex-col min-w-0`}>
               {!selectedCollection ? (
                 <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
                   {collections.length > 0
@@ -188,7 +188,16 @@ const Collections = () => {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0">
+                  <div className="flex items-center gap-3 px-4 md:px-5 py-3 border-b border-border shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 md:hidden shrink-0"
+                      onClick={() => setSelectedCollectionId(null)}
+                      aria-label="Back to collections"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
                     <div className="flex-1 min-w-0">
                       <h2 className="text-sm font-semibold truncate">{selectedCollection.name}</h2>
                       {selectedCollection.description && (

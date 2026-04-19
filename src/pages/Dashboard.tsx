@@ -96,14 +96,14 @@ const Dashboard = () => {
         />
 
         <SidebarInset>
-          <header className="flex items-center gap-3 border-b border-border px-6 py-3">
+          <header className="flex items-center gap-3 border-b border-border px-4 md:px-6 py-3">
             <SidebarTrigger />
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">
+            <h1 className="text-base md:text-lg font-semibold text-foreground tracking-tight">
               Dashboard
             </h1>
           </header>
 
-          <div className="w-full px-6 py-6 space-y-6">
+          <div className="w-full px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
             {isLoading && (
               <div className="text-center py-20 text-muted-foreground text-sm">
                 Loading dashboard...
@@ -362,7 +362,7 @@ const Dashboard = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-[400px] rounded-md overflow-hidden">
+                      <div className="h-[300px] md:h-[400px] rounded-md overflow-hidden">
                         <GpsMap points={gpsQuery.data} />
                       </div>
                     </CardContent>

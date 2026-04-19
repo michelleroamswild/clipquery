@@ -9,6 +9,11 @@ import {
   thumbnailStatus,
   getThumbnailsDir,
 } from "../../indexer/poster-frame.js";
+import {
+  generatePhotoThumbs,
+  photoThumbStatus,
+  photoThumbPath,
+} from "../../indexer/photo-thumbs.js";
 import { getDb } from "../../db/connection.js";
 
 const execFileAsync = promisify(execFile);
@@ -103,11 +108,21 @@ router.get("/thumbnails/file/:filename", (req, res) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-/** GET /api/thumbnails/photo/:id — Serve photo thumbnail (convert non-web formats to JPEG) */
+/** GET /api/thumbnails/photo/:id — Serve photo thumbnail, preferring local cache */
 router.get("/thumbnails/photo/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const cachedPath = photoThumbPath(id);
+
+  // 1. Prefer local cache — works offline, fast, small
+  if (fs.existsSync(cachedPath) && fs.statSync(cachedPath).size > 0) {
+    res.set("Cache-Control", "public, max-age=604800, immutable");
+    res.set("Content-Type", "image/jpeg");
+    fs.createReadStream(cachedPath).pipe(res);
     return;
   }
 
@@ -128,7 +143,8 @@ router.get("/thumbnails/photo/:id", async (req, res) => {
 
   const ext = row.file_ext.toLowerCase();
 
-  // Browser-native formats: stream original file directly
+  // 2. Drive is mounted — for web-native formats, stream the original once
+  //    (caching the downscaled version is what the batch generator does).
   if (WEB_NATIVE_EXTS.has(ext)) {
     const contentType = PHOTO_CONTENT_TYPES[ext] || "application/octet-stream";
     res.set("Cache-Control", "public, max-age=604800, immutable");
@@ -137,18 +153,7 @@ router.get("/thumbnails/photo/:id", async (req, res) => {
     return;
   }
 
-  // Non-native formats (.dng, .heic, .tiff, .cr2, .nef, etc.): convert to JPEG and cache
-  const thumbsDir = getThumbnailsDir();
-  const cachedPath = path.join(thumbsDir, `photo-${id}.jpg`);
-
-  if (fs.existsSync(cachedPath)) {
-    res.set("Cache-Control", "public, max-age=604800, immutable");
-    res.set("Content-Type", "image/jpeg");
-    fs.createReadStream(cachedPath).pipe(res);
-    return;
-  }
-
-  // Try ffmpeg first, then fall back to exiftool for RAW formats (ARW, CR2, NEF, etc.)
+  // 3. Non-native formats: convert to JPEG on the fly and cache for next time
   try {
     await execFileAsync("ffmpeg", [
       "-i", row.absolute_path,
@@ -163,7 +168,6 @@ router.get("/thumbnails/photo/:id", async (req, res) => {
       throw new Error("ffmpeg produced no output");
     }
   } catch {
-    // Fallback: extract embedded JPEG preview via exiftool
     try {
       await execFileAsync("bash", [
         "-c",
@@ -181,6 +185,23 @@ router.get("/thumbnails/photo/:id", async (req, res) => {
   } else {
     res.status(500).json({ error: "Failed to generate thumbnail" });
   }
+});
+
+/** POST /api/thumbnails/photos/generate — Process one batch of photo thumbnails */
+router.post("/thumbnails/photos/generate", async (req, res) => {
+  try {
+    const volume = req.query.volume as string | undefined;
+    const result = await generatePhotoThumbs(volume);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/** GET /api/thumbnails/photos/status — Counts by ai_state for photos */
+router.get("/thumbnails/photos/status", (req, res) => {
+  const volume = req.query.volume as string | undefined;
+  res.json(photoThumbStatus(volume));
 });
 
 export default router;

@@ -6,7 +6,7 @@ import { getDb } from "./connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(__dirname, "schema.sql");
-const CURRENT_VERSION = 12;
+const CURRENT_VERSION = 13;
 
 export function runMigrations(db?: Database.Database): void {
   const conn = db ?? getDb();
@@ -146,6 +146,20 @@ export function runMigrations(db?: Database.Database): void {
     if (!colNames.has("marked_for_delete")) {
       conn.exec(
         "ALTER TABLE media_items ADD COLUMN marked_for_delete INTEGER NOT NULL DEFAULT 0"
+      );
+    }
+  }
+
+  if (currentVersion < 13) {
+    // v12 → v13: Add clip_state column for CLIP visual embeddings
+    const cols = conn.pragma("table_info(media_items)") as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("clip_state")) {
+      conn.exec(
+        "ALTER TABLE media_items ADD COLUMN clip_state TEXT NOT NULL DEFAULT 'not_started'"
+      );
+      conn.exec(
+        "CREATE INDEX IF NOT EXISTS idx_media_clip_state ON media_items(clip_state)"
       );
     }
   }

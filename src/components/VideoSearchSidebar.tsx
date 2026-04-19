@@ -66,7 +66,7 @@ export function VideoSearchSidebar({
           <NavLink
             to="/dashboard"
             className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary font-medium"
+            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
           >
             <ChartBar className="h-4 w-4" />
             Dashboard
@@ -75,7 +75,7 @@ export function VideoSearchSidebar({
             to="/"
             end
             className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary font-medium"
+            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
           >
             <MagnifyingGlass className="h-4 w-4" />
             Files
@@ -83,7 +83,7 @@ export function VideoSearchSidebar({
           <NavLink
             to="/collections"
             className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary font-medium"
+            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
           >
             <Folders className="h-4 w-4" />
             Collections
@@ -91,7 +91,7 @@ export function VideoSearchSidebar({
           <NavLink
             to="/clip-finder"
             className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary font-medium"
+            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
           >
             <FilmStrip className="h-4 w-4" />
             Clip Finder
@@ -99,7 +99,7 @@ export function VideoSearchSidebar({
           <NavLink
             to="/storage"
             className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary font-medium"
+            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
           >
             <Broom className="h-4 w-4" />
             Storage

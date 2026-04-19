@@ -21,7 +21,7 @@ export interface SearchResult {
   confidence: number; // 0-1
 }
 
-export type SortOption = "score" | "newest" | "shortest-timestamp";
+export type SortOption = "newest" | "shortest-timestamp";
 /** Convert a DB row to the VideoFile shape used by existing components */
 export function mediaRowToVideoFile(row: MediaItemRow): VideoFile {
   return {

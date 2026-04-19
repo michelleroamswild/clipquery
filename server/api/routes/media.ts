@@ -103,12 +103,18 @@ router.get("/media", (req, res) => {
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const allowedSorts = ["updated_at", "filename", "size_bytes", "mtime_ms", "created_at", "rating"];
-  const sortCol = allowedSorts.includes(sort) ? sort : "updated_at";
   const sortDir = order === "asc" ? "ASC" : "DESC";
+
+  // "has_preview" is a virtual sort: items whose thumbnail is cached locally (ai_state = 'done')
+  // come first — those render offline. Newest within each group.
+  const orderBy =
+    sort === "has_preview"
+      ? `CASE WHEN ai_state = 'done' THEN 0 ELSE 1 END ASC, mtime_ms DESC`
+      : `${allowedSorts.includes(sort) ? sort : "updated_at"} ${sortDir}`;
 
   const items = db
     .prepare(
-      `SELECT * FROM media_items ${where} ORDER BY ${sortCol} ${sortDir} LIMIT @limit OFFSET @offset`
+      `SELECT * FROM media_items ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit, offset });
 

@@ -4,6 +4,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { GpsPoint } from "@/lib/api-client";
+import { useTheme } from "@/hooks/use-theme";
 
 // Fix default marker icons (Leaflet + bundler issue)
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -57,6 +58,12 @@ interface GpsMapProps {
 }
 
 export function GpsMap({ points }: GpsMapProps) {
+  const { theme } = useTheme();
+  const tileUrl =
+    theme === "dark"
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
   return (
     <>
       <style>{`
@@ -71,8 +78,9 @@ export function GpsMap({ points }: GpsMapProps) {
         scrollWheelZoom
       >
         <TileLayer
+          key={theme}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url={tileUrl}
         />
         <FitBounds points={points} />
         <MarkerClusterGroup chunkedLoading>
