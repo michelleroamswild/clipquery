@@ -145,7 +145,7 @@ export function ResultsTable(props: ResultsTableProps) {
           <TableHead className="h-8 px-2 text-xs w-[100px] hidden sm:table-cell">Date Created</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[120px] hidden 2xl:table-cell">Location</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[70px] hidden sm:table-cell">Status</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[60px] text-center hidden 2xl:table-cell">AI</TableHead>
+          <TableHead className="h-8 px-2 text-xs w-[60px] text-center hidden lg:table-cell">AI</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[110px] hidden sm:table-cell">Rating</TableHead>
           <TableHead className="h-8 px-2 text-xs w-[70px]" />
         </TableRow>
@@ -260,7 +260,7 @@ export function ResultsTable(props: ResultsTableProps) {
                 )
               )}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-center hidden 2xl:table-cell">
+            <TableCell className="px-2 py-1.5 text-center hidden lg:table-cell">
               <div className="flex flex-col items-center gap-1">
                 {row.mediaItem?.llava_state === "done" && (
                   <span
