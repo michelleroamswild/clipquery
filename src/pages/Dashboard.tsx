@@ -312,39 +312,59 @@ const Dashboard = () => {
                   <div>
                     <h2 className="text-sm font-medium mb-3">Volumes</h2>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {data.volumes.map((vol) => (
-                        <Link
-                          key={vol.volume_name}
-                          to={`/volume/${encodeURIComponent(vol.volume_name ?? "Local")}`}
-                          className="block"
-                        >
-                          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                            <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                              <HardDrive className="h-4 w-4 text-muted-foreground" />
-                              <CardTitle className="text-sm font-medium truncate">
-                                {vol.volume_name ?? "Local"}
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-1">
-                              <div className="text-xs text-muted-foreground">
-                                {vol.count.toLocaleString()} items &middot; {formatBytes(vol.size)}
-                              </div>
-                              <div className="flex gap-2 text-xs text-muted-foreground">
-                                {vol.photos > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Camera className="h-3 w-3" /> {vol.photos.toLocaleString()}
-                                  </span>
-                                )}
-                                {vol.videos > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <FilmStrip className="h-3 w-3" /> {vol.videos.toLocaleString()}
-                                  </span>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </Link>
-                      ))}
+                      {data.volumes.map((vol) => {
+                        const aiPct = vol.count > 0 ? Math.round((vol.llava_done / vol.count) * 100) : 0;
+                        return (
+                          <Link
+                            key={vol.volume_name}
+                            to={`/volume/${encodeURIComponent(vol.volume_name ?? "Local")}`}
+                            className="block"
+                          >
+                            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                              <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                                <HardDrive className="h-4 w-4 text-muted-foreground" />
+                                <CardTitle className="text-sm font-medium truncate">
+                                  {vol.volume_name ?? "Local"}
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-2">
+                                <div className="text-xs text-muted-foreground">
+                                  {vol.count.toLocaleString()} items &middot; {formatBytes(vol.size)}
+                                </div>
+                                <div className="flex gap-2 text-xs text-muted-foreground">
+                                  {vol.photos > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <Camera className="h-3 w-3" /> {vol.photos.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {vol.videos > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <FilmStrip className="h-3 w-3" /> {vol.videos.toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="pt-1 space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <Brain className="h-3 w-3" />
+                                      AI Analyzed
+                                    </span>
+                                    <span className="text-[hsl(var(--accent-utility))] tabular-nums">
+                                      {aiPct}% &middot; {vol.llava_done.toLocaleString()}/{vol.count.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="h-1 w-full bg-muted overflow-hidden">
+                                    <div
+                                      className="h-full bg-[hsl(var(--accent-utility))]"
+                                      style={{ width: `${aiPct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

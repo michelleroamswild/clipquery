@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { FolderOpen, Folders, HardDrive, Usb, SpinnerGap, CaretRight, Camera, FilmStrip, MagnifyingGlass, ChartBar, Broom, Sun, Moon } from "@phosphor-icons/react";
+import { FolderOpen, Folders, HardDrive, Usb, SpinnerGap, CaretRight, Camera, FilmStrip, MagnifyingGlass, ChartBar, ChartPieSlice, Sun, Moon } from "@phosphor-icons/react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,7 +123,7 @@ export function VideoSearchSidebar({
             className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
             activeClassName="bg-muted text-foreground border-l-2 border-[hsl(var(--accent-utility))] font-medium"
           >
-            <Broom className="h-4 w-4" />
+            <ChartPieSlice className="h-4 w-4" />
             Storage
           </NavLink>
         </nav>

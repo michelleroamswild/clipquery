@@ -331,7 +331,7 @@ export interface DashboardResponse {
   topLocations: { location_name: string; count: number }[];
   timeline: { month: string; photos: number; videos: number }[];
   topExtensions: { file_ext: string; count: number }[];
-  volumes: { volume_name: string; count: number; size: number; videos: number; photos: number }[];
+  volumes: { volume_name: string; count: number; size: number; videos: number; photos: number; llava_done: number }[];
   avgSize: { type: string; avg_size: number }[];
   gps: { with_gps: number; without_gps: number };
 }

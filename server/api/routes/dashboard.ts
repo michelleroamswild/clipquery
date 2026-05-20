@@ -54,10 +54,11 @@ router.get("/media/dashboard", (_req, res) => {
     .prepare(
       `SELECT volume_name, COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as size,
        SUM(CASE WHEN type='video' THEN 1 ELSE 0 END) as videos,
-       SUM(CASE WHEN type='photo' THEN 1 ELSE 0 END) as photos
+       SUM(CASE WHEN type='photo' THEN 1 ELSE 0 END) as photos,
+       SUM(CASE WHEN llava_state='done' THEN 1 ELSE 0 END) as llava_done
        FROM media_items GROUP BY volume_name`
     )
-    .all() as { volume_name: string; count: number; size: number; videos: number; photos: number }[];
+    .all() as { volume_name: string; count: number; size: number; videos: number; photos: number; llava_done: number }[];
 
   // 9. Avg file size by type
   const avgSize = db
