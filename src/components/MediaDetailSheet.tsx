@@ -197,20 +197,31 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
     }
   };
 
-  const meta: { label: string; value: string }[] = [
-    { label: "Type", value: item.type },
-    { label: "Size", value: formatFileSize(item.size_bytes) },
-    { label: "Date modified", value: new Date(item.mtime_ms).toLocaleString() },
-    { label: "Date indexed", value: new Date(item.created_at).toLocaleString() },
-    ...(item.volume_name ? [{ label: "Volume", value: item.volume_name }] : []),
-    { label: "Availability", value: item.availability },
-    { label: "AI Analysis", value: item.llava_state + (item.llava_version ? ` (v${item.llava_version})` : "") },
-    ...(item.type === "video" ? [{ label: "Thumbnail", value: item.ai_state }] : []),
+  type Provenance = "hw" | "ml" | "user" | "sys";
+  const meta: { label: string; value: string; source: Provenance; mono?: boolean }[] = [
+    { label: "Type", value: item.type, source: "hw" },
+    { label: "Size", value: formatFileSize(item.size_bytes), source: "hw", mono: true },
+    { label: "Modified", value: new Date(item.mtime_ms).toISOString().replace("T", " ").slice(0, 19), source: "hw", mono: true },
+    { label: "Indexed", value: new Date(item.created_at).toISOString().replace("T", " ").slice(0, 19), source: "sys", mono: true },
+    ...(item.volume_name ? [{ label: "Volume", value: item.volume_name, source: "hw" as Provenance }] : []),
+    { label: "Availability", value: item.availability, source: "sys" },
+    { label: "Analysis", value: item.llava_state + (item.llava_version ? ` v${item.llava_version}` : ""), source: "ml" as Provenance, mono: true },
+    ...(item.type === "video" ? [{ label: "Thumbnail", value: item.ai_state, source: "sys" as Provenance, mono: true }] : []),
     ...(item.latitude != null && item.longitude != null
-      ? [{ label: "GPS", value: formatCoords(item.latitude, item.longitude) }]
+      ? [{ label: "GPS", value: formatCoords(item.latitude, item.longitude), source: "hw" as Provenance, mono: true }]
       : []),
-    ...(item.location_name ? [{ label: "Location", value: item.location_name }] : []),
+    ...(item.location_name ? [{ label: "Location", value: item.location_name, source: "ml" as Provenance }] : []),
   ];
+
+  const ProvTag = ({ source }: { source: Provenance }) => {
+    if (source === "sys") return null;
+    const labels: Record<Provenance, string> = { hw: "HW", ml: "ML", user: "USER", sys: "" };
+    return (
+      <span className="provenance-tag mr-1.5 align-middle" data-source={source}>
+        {labels[source]}
+      </span>
+    );
+  };
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -218,10 +229,10 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
         {/* Header bar */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0">
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold truncate" title={item.filename}>
+            <h2 className="text-sm font-semibold truncate tracking-tight" title={item.filename}>
               {item.filename}
             </h2>
-            <span className="inline-block mt-0.5 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+            <span className="inline-block mt-0.5 rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-mono uppercase text-muted-foreground">
               .{ext}
             </span>
           </div>
@@ -333,21 +344,22 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
 
             {/* Tags section */}
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
                 <Tag className="h-3 w-3" />
                 Tags
+                <span className="provenance-tag" data-source="user">USER</span>
               </div>
-              <div className="flex flex-wrap gap-1.5 items-center">
+              <div className="flex flex-wrap gap-1 items-center">
                 {(itemTags.data ?? []).map((t) => (
                   <span
                     key={t.id}
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                    className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 text-[11px] font-mono"
                     style={{
-                      backgroundColor: t.color ? `${t.color}20` : undefined,
+                      borderColor: t.color ? `${t.color}66` : undefined,
                       color: t.color || undefined,
                     }}
                   >
-                    {!t.color && <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />}
+                    <span className="provenance-tag" data-source="user">USER</span>
                     {t.name}
                     <button
                       className="ml-0.5 opacity-60 hover:opacity-100"
@@ -359,7 +371,7 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
                 ))}
                 <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-full">
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-sm">
                       <Plus className="h-3 w-3 mr-0.5" />
                       Add tag
                     </Button>
@@ -416,24 +428,25 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
 
             {/* Collections section */}
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
                 <Folder className="h-3 w-3" />
                 Collections
+                <span className="provenance-tag" data-source="user">USER</span>
               </div>
-              <div className="flex flex-wrap gap-1.5 items-center">
+              <div className="flex flex-wrap gap-1 items-center">
                 {(collections.data ?? [])
                   .filter((c) => c.coverIds?.includes(item.id) || false)
                   .map((c) => (
                     <span
                       key={c.id}
-                      className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs"
+                      className="inline-block rounded-sm border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono"
                     >
                       {c.name}
                     </span>
                   ))}
                 <Popover open={collectionPopoverOpen} onOpenChange={setCollectionPopoverOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-full">
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-sm">
                       <Plus className="h-3 w-3 mr-0.5" />
                       Add to collection
                     </Button>
@@ -467,11 +480,14 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
             <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
               {meta.map((m) => (
                 <div key={m.label} className="contents">
-                  <span className="text-muted-foreground text-xs whitespace-nowrap">{m.label}</span>
-                  <span className="text-xs">
+                  <span className="text-muted-foreground text-[10px] font-mono uppercase tracking-wide whitespace-nowrap pt-0.5">
+                    {m.label}
+                  </span>
+                  <span className={`text-xs flex items-center ${m.mono ? "font-mono" : ""} ${m.source === "ml" ? "text-[hsl(var(--accent-utility))]" : ""}`}>
+                    <ProvTag source={m.source} />
                     {m.label === "Location" ? (
                       <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-green-400 shrink-0" />
+                        <MapPin className="h-3 w-3 shrink-0" />
                         {m.value}
                       </span>
                     ) : (
@@ -502,11 +518,12 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
             {/* Camera EXIF */}
             {exifData && (exifData.cameraMake || exifData.cameraModel || exifData.lensModel || exifData.fNumber != null) && (
               <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
                   <Camera className="h-3 w-3" />
                   Camera
+                  <span className="provenance-tag" data-source="hw">HW</span>
                 </div>
-                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs font-mono">
                   {(exifData.cameraMake || exifData.cameraModel) && (
                     <div className="contents">
                       <span className="text-muted-foreground">Camera</span>
@@ -551,34 +568,28 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
             {/* LLaVA Analysis */}
             {llavaDescription && (
               <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
                   <Brain className="h-3 w-3" />
-                  AI Analysis
-                  <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                    llavaVersion >= 2
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-muted text-muted-foreground"
-                  }`}>
-                    v{llavaVersion}
-                  </span>
+                  Analysis
+                  <span className="provenance-tag" data-source="ml">ML v{llavaVersion}</span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="ml-auto h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    className="ml-auto h-5 px-1.5 text-[10px] font-mono text-muted-foreground hover:text-foreground"
                     disabled={reanalyzing}
                     onClick={handleReanalyze}
                   >
                     <ArrowsClockwise className={`mr-1 h-3 w-3 ${reanalyzing ? "animate-spin" : ""}`} />
-                    {reanalyzing ? "Analyzing..." : "Re-analyze"}
+                    {reanalyzing ? "RUNNING..." : "RE-ANALYZE"}
                   </Button>
                 </div>
-                <p className="text-sm leading-relaxed">{llavaDescription}</p>
+                <p className="text-sm leading-relaxed text-[hsl(var(--accent-utility))]">{llavaDescription}</p>
                 {llavaTags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {llavaTags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs"
+                        className="inline-block rounded-sm border border-[hsl(var(--accent-utility))]/40 px-1.5 py-0.5 text-[11px] font-mono text-[hsl(var(--accent-utility))]"
                       >
                         {tag}
                       </span>
@@ -586,11 +597,11 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
                   </div>
                 )}
                 {llavaColors.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {llavaColors.map((color) => (
                       <span
                         key={color}
-                        className="inline-block rounded-full bg-violet-500/10 text-violet-300 px-2 py-0.5 text-xs"
+                        className="inline-block rounded-sm border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground"
                       >
                         {color}
                       </span>
@@ -602,9 +613,9 @@ export function MediaDetailSheet({ item: propItem, items, open, onClose, onNavig
 
             {/* Full path */}
             <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Full path</span>
+              <span className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">Path</span>
               <div className="flex items-start gap-2">
-                <code className="flex-1 text-xs font-mono bg-muted rounded px-2 py-1.5 break-all leading-relaxed">
+                <code className="flex-1 text-[11px] font-mono bg-muted border border-border px-2 py-1.5 break-all leading-relaxed">
                   {item.absolute_path}
                 </code>
               </div>

@@ -57,11 +57,18 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "accent-utility": "hsl(var(--accent-utility))",
+        "accent-utility-tint": "hsl(var(--accent-utility-tint))",
+        "status-success": "hsl(var(--status-success))",
+      },
+      fontFamily: {
+        sans: ['"Geist"', '"Instrument Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', '"Geist Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "0px",
+        md: "0px",
+        sm: "2px",
       },
       keyframes: {
         "accordion-down": {

@@ -136,18 +136,18 @@ export function ResultsTable(props: ResultsTableProps) {
               />
             </TableHead>
           )}
-          <TableHead className="h-8 px-2 text-xs w-[72px]" />
-          <TableHead className="h-8 px-2 text-xs">Filename</TableHead>
-          {isSearch && <TableHead className="h-8 px-2 text-xs w-[60px]">Score</TableHead>}
-          <TableHead className="h-8 px-2 text-xs w-[120px] hidden md:table-cell">Volume</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[60px] hidden sm:table-cell">Type</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[90px]">Size</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[100px] hidden sm:table-cell">Date Created</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[120px] hidden 2xl:table-cell">Location</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[70px] hidden sm:table-cell">Status</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[60px] text-center hidden lg:table-cell">AI</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[110px] hidden sm:table-cell">Rating</TableHead>
-          <TableHead className="h-8 px-2 text-xs w-[70px]" />
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[72px]" />
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide">Filename</TableHead>
+          {isSearch && <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[60px]">Score</TableHead>}
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[120px] hidden md:table-cell">Volume</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[60px] hidden sm:table-cell">Type</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[90px]">Size</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[100px] hidden sm:table-cell">Modified</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[120px] hidden 2xl:table-cell">Location</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[70px] hidden sm:table-cell">Status</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[60px] text-center hidden lg:table-cell">AI</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[110px] hidden sm:table-cell">Rating</TableHead>
+          <TableHead className="h-8 px-2 text-[10px] font-mono uppercase tracking-wide w-[70px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -184,10 +184,10 @@ export function ResultsTable(props: ResultsTableProps) {
                       return next;
                     })
                   }
-                  className="w-16 h-10 object-cover rounded-sm"
+                  className="w-16 h-10 object-cover rounded-sm border border-border"
                 />
               ) : (
-                <div className="w-16 h-10 rounded-sm bg-muted flex items-center justify-center">
+                <div className="w-16 h-10 rounded-sm border border-border bg-muted flex items-center justify-center">
                   {row.mediaItem?.type === "video" ? (
                     <FilmStrip className="h-4 w-4 text-muted-foreground" />
                   ) : (
@@ -208,10 +208,10 @@ export function ResultsTable(props: ResultsTableProps) {
               </span>
             </TableCell>
             {isSearch && (
-              <TableCell className="px-2 py-1.5 text-xs font-medium">
+              <TableCell className="px-2 py-1.5 text-xs font-mono font-medium">
                 {row.score != null ? (
                   row.score <= 1 ? (
-                    <span className={`${row.score >= 0.5 ? "text-emerald-700 dark:text-emerald-400" : row.score >= 0.25 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                    <span className={`${row.score >= 0.5 ? "text-[hsl(var(--status-success))]" : row.score >= 0.25 ? "text-[hsl(var(--accent-utility))]" : "text-muted-foreground"}`}>
                       {Math.round(row.score * 100)}%
                     </span>
                   ) : (
@@ -220,17 +220,17 @@ export function ResultsTable(props: ResultsTableProps) {
                 ) : "—"}
               </TableCell>
             )}
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground truncate max-w-[120px] hidden md:table-cell" title={row.mediaItem?.volume_name ?? ""}>
+            <TableCell className="px-2 py-1.5 text-xs font-mono text-muted-foreground truncate max-w-[120px] hidden md:table-cell" title={row.mediaItem?.volume_name ?? ""}>
               {row.mediaItem?.volume_name ?? "—"}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">
+            <TableCell className="px-2 py-1.5 text-xs font-mono text-muted-foreground hidden sm:table-cell">
               .{row.ext}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">
+            <TableCell className="px-2 py-1.5 text-xs font-mono text-muted-foreground tabular-nums">
               {formatFileSize(row.sizeBytes)}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">
-              {row.date.toLocaleDateString()}
+            <TableCell className="px-2 py-1.5 text-xs font-mono text-muted-foreground tabular-nums hidden sm:table-cell">
+              {row.date.toISOString().slice(0, 10)}
             </TableCell>
             <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hidden 2xl:table-cell">
               {row.latitude != null && row.longitude != null ? (
@@ -264,27 +264,23 @@ export function ResultsTable(props: ResultsTableProps) {
               <div className="flex flex-col items-center gap-1">
                 {row.mediaItem?.llava_state === "done" && (
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
-                      (row.mediaItem?.llava_version ?? 0) >= 2
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                        : "bg-violet-500/15 text-violet-700 dark:text-violet-400"
-                    }`}
+                    className="inline-flex items-center gap-1 rounded-sm border border-[hsl(var(--accent-utility))]/40 px-1.5 py-0.5 text-[10px] font-mono whitespace-nowrap text-[hsl(var(--accent-utility))]"
                     title={`Analyzed${(row.mediaItem?.llava_version ?? 0) >= 2 ? " v2" : " v1"}`}
                   >
                     <Brain className="h-3 w-3 shrink-0" />
-                    {(row.mediaItem?.llava_version ?? 0) >= 2 ? "v2" : "v1"}
+                    ML&nbsp;v{(row.mediaItem?.llava_version ?? 0) >= 2 ? "2" : "1"}
                   </span>
                 )}
                 {row.mediaItem?.llava_state === "error" && (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-700 dark:text-red-400">
+                  <span className="inline-flex items-center gap-1 rounded-sm border border-destructive/40 px-1.5 py-0.5 text-[10px] font-mono text-destructive">
                     <Warning className="h-3 w-3 shrink-0" />
-                    Analysis error
+                    ERR
                   </span>
                 )}
                 {row.mediaItem?.type === "video" && row.mediaItem?.ai_state === "error" && (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-red-500/15 text-red-700 dark:text-red-400">
+                  <span className="inline-flex items-center gap-1 rounded-sm border border-destructive/40 px-1.5 py-0.5 text-[10px] font-mono text-destructive">
                     <Warning className="h-3 w-3 shrink-0" />
-                    Thumbnail error
+                    THUMB
                   </span>
                 )}
               </div>

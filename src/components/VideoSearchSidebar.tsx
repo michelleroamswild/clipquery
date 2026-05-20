@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { FolderOpen, Folders, HardDrive, Usb, SpinnerGap, CaretRight, Camera, FilmStrip, MagnifyingGlass, ChartBar, Broom, Sun, Moon } from "@phosphor-icons/react";
 import { NavLink } from "@/components/NavLink";
@@ -56,7 +56,29 @@ export function VideoSearchSidebar({
   };
 
   return (
-    <Sidebar className="border-r border-border">
+    <Sidebar
+      className="border-r border-border"
+      style={{
+        // Light "paper" surface — override global tokens locally so every
+        // text-muted-foreground / bg-background / border inside the sidebar
+        // flips to the light variant without touching the rest of the app.
+        ["--background" as string]: "0 0% 98%",
+        ["--foreground" as string]: "220 10% 14%",
+        ["--card" as string]: "0 0% 100%",
+        ["--muted" as string]: "30 6% 92%",
+        ["--muted-foreground" as string]: "220 10% 35%",
+        ["--accent" as string]: "30 6% 90%",
+        ["--accent-foreground" as string]: "220 10% 14%",
+        ["--border" as string]: "220 8% 82%",
+        ["--secondary" as string]: "30 6% 90%",
+        ["--secondary-foreground" as string]: "220 10% 14%",
+        ["--sidebar-background" as string]: "0 0% 98%",
+        ["--sidebar-foreground" as string]: "220 10% 22%",
+        ["--sidebar-accent" as string]: "30 6% 90%",
+        ["--sidebar-accent-foreground" as string]: "220 10% 14%",
+        ["--sidebar-border" as string]: "220 8% 82%",
+      } as CSSProperties}
+    >
       <SidebarHeader className="p-4 space-y-3">
         <div className="flex items-center gap-2">
           <HardDrive className="h-5 w-5 text-muted-foreground" />
@@ -65,8 +87,8 @@ export function VideoSearchSidebar({
         <nav className="flex flex-col gap-1.5">
           <NavLink
             to="/dashboard"
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+            activeClassName="bg-muted text-foreground border-l-2 border-[hsl(var(--accent-utility))] font-medium"
           >
             <ChartBar className="h-4 w-4" />
             Dashboard
@@ -74,32 +96,32 @@ export function VideoSearchSidebar({
           <NavLink
             to="/"
             end
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+            activeClassName="bg-muted text-foreground border-l-2 border-[hsl(var(--accent-utility))] font-medium"
           >
             <MagnifyingGlass className="h-4 w-4" />
             Files
           </NavLink>
           <NavLink
             to="/collections"
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+            activeClassName="bg-muted text-foreground border-l-2 border-[hsl(var(--accent-utility))] font-medium"
           >
             <Folders className="h-4 w-4" />
             Collections
           </NavLink>
           <NavLink
             to="/clip-finder"
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+            activeClassName="bg-muted text-foreground border-l-2 border-[hsl(var(--accent-utility))] font-medium"
           >
             <FilmStrip className="h-4 w-4" />
             Clip Finder
           </NavLink>
           <NavLink
             to="/storage"
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-            activeClassName="bg-primary/10 text-primary dark:text-blue-300 font-medium"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+            activeClassName="bg-muted text-foreground border-l-2 border-[hsl(var(--accent-utility))] font-medium"
           >
             <Broom className="h-4 w-4" />
             Storage

@@ -76,12 +76,12 @@ const Dashboard = () => {
   const gpsPercent = totalCount > 0 ? Math.round((gpsWithCount / totalCount) * 100) : 0;
 
   const timelineConfig = {
-    photos: { label: "Photos", color: "hsl(210 80% 60%)" },
-    videos: { label: "Videos", color: "hsl(280 70% 60%)" },
+    photos: { label: "Photos", color: "hsl(var(--muted-foreground))" },
+    videos: { label: "Videos", color: "hsl(var(--accent-utility))" },
   };
 
   const extConfig = {
-    count: { label: "Files", color: "hsl(var(--primary))" },
+    count: { label: "Files", color: "hsl(var(--accent-utility))" },
   };
 
   return (
@@ -196,13 +196,13 @@ const Dashboard = () => {
                           <Bar dataKey="videos" stackId="a" fill="var(--color-videos)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ChartContainer>
-                      <div className="flex items-center justify-center gap-4 mt-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
                         <span className="flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "hsl(210 80% 60%)" }} />
+                          <span className="h-2.5 w-2.5" style={{ background: "hsl(var(--muted-foreground))" }} />
                           Photos
                         </span>
                         <span className="flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "hsl(280 70% 60%)" }} />
+                          <span className="h-2.5 w-2.5" style={{ background: "hsl(var(--accent-utility))" }} />
                           Videos
                         </span>
                       </div>

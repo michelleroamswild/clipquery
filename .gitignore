@@ -31,3 +31,4 @@ data/
 
 # Server build
 dist-server/
+.gstack/
