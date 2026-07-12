@@ -19,10 +19,10 @@
       (function () {
         try {
           var stored = localStorage.getItem("clipquery-theme");
-          var theme = stored || "dark";
+          var theme = stored || "light";
           if (theme === "dark") document.documentElement.classList.add("dark");
         } catch (e) {
-          document.documentElement.classList.add("dark");
+          /* no stored preference reachable — fall through to light */
         }
       })();
     </script>

@@ -4,7 +4,7 @@ type Theme = "light" | "dark";
 const STORAGE_KEY = "clipquery-theme";
 
 function readTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 

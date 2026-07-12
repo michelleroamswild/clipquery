@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FolderOpen, Folders, HardDrive, Usb, SpinnerGap, CaretRight, Camera, FilmStrip, MagnifyingGlass, ChartBar, ChartPieSlice, Sun, Moon } from "@phosphor-icons/react";
 import { NavLink } from "@/components/NavLink";
@@ -56,29 +56,7 @@ export function VideoSearchSidebar({
   };
 
   return (
-    <Sidebar
-      className="border-r border-border"
-      style={{
-        // Light "paper" surface — override global tokens locally so every
-        // text-muted-foreground / bg-background / border inside the sidebar
-        // flips to the light variant without touching the rest of the app.
-        ["--background" as string]: "0 0% 98%",
-        ["--foreground" as string]: "220 10% 14%",
-        ["--card" as string]: "0 0% 100%",
-        ["--muted" as string]: "30 6% 92%",
-        ["--muted-foreground" as string]: "220 10% 35%",
-        ["--accent" as string]: "30 6% 90%",
-        ["--accent-foreground" as string]: "220 10% 14%",
-        ["--border" as string]: "220 8% 82%",
-        ["--secondary" as string]: "30 6% 90%",
-        ["--secondary-foreground" as string]: "220 10% 14%",
-        ["--sidebar-background" as string]: "0 0% 98%",
-        ["--sidebar-foreground" as string]: "220 10% 22%",
-        ["--sidebar-accent" as string]: "30 6% 90%",
-        ["--sidebar-accent-foreground" as string]: "220 10% 14%",
-        ["--sidebar-border" as string]: "220 8% 82%",
-      } as CSSProperties}
-    >
+    <Sidebar className="border-r border-border">
       <SidebarHeader className="p-4 space-y-3">
         <div className="flex items-center gap-2">
           <HardDrive className="h-5 w-5 text-muted-foreground" />
